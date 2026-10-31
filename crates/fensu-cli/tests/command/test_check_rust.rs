@@ -314,7 +314,7 @@ fn given_unavailable_cargo_metadata_when_checking_then_failure_is_read_only_and_
 fn given_selected_custom_rust_file_rule_when_checking_then_owned_item_and_tree_facts_emit_fault() {
     let python = require_workspace_python!();
     let test_cases = [RustCustomFileRuleTestCase {
-        description: "typed Rust file rule reads item and tree facts",
+        description: "large Rust fact identities preserve findings at both ends of the file",
         expected_exit_code: 1,
         expected_location: "src/lib.rs:2:11",
         expected_code: "XRS001",
@@ -327,11 +327,16 @@ fn given_selected_custom_rust_file_rule_when_checking_then_owned_item_and_tree_f
         );
         write(
             repository.path().join("src/lib.rs"),
-            "#[derive(Clone)]\npub struct LegacyService;\n",
+            &format!(
+                "#[derive(Clone)]\npub struct LegacyServiceFirst;\n{}pub struct LegacyServiceLast;\n",
+                (0..70_000)
+                    .map(|index| format!("pub struct Record{index};\n"))
+                    .collect::<String>()
+            ),
         );
         write(
             repository.path().join("rules/custom.py"),
-            "from fensu import AnalyzerId, Family, Fault, File, RuleContext, RuleOption, RustItemKind, rule\nNAME = RuleOption.string(name='name', default='LegacyService')\n@rule(code='XRS001', family=Family.CUSTOM, slug='rust-item', message='legacy item', analyzers=(AnalyzerId.RUST,), options=(NAME,), cacheable=True)\ndef rust_item(*, file: File, ctx: RuleContext) -> list[Fault]:\n    position = ctx.project.tree.position(file.path)\n    facts = ctx.rust.file(file)\n    if position is None or facts is None or position.analyzer is not AnalyzerId.RUST:\n        return []\n    return [ctx.fault_at(location=item.location) for item in facts.items if item.kind is RustItemKind.STRUCT and item.name == ctx.option(NAME)]\n",
+            "from fensu import AnalyzerId, Family, Fault, File, RuleContext, RuleOption, RustItemKind, rule\nNAME = RuleOption.string(name='name', default='LegacyService')\n@rule(code='XRS001', family=Family.CUSTOM, slug='rust-item', message='legacy item', analyzers=(AnalyzerId.RUST,), options=(NAME,), cacheable=True)\ndef rust_item(*, file: File, ctx: RuleContext) -> list[Fault]:\n    position = ctx.project.tree.position(file.path)\n    facts = ctx.rust.file(file)\n    if position is None or facts is None or position.analyzer is not AnalyzerId.RUST:\n        return []\n    return [ctx.fault_at(location=item.location) for item in facts.items if item.kind is RustItemKind.STRUCT and item.name.startswith(ctx.option(NAME))]\n",
         );
         write(
             repository.path().join("fensu.toml"),
@@ -357,6 +362,12 @@ fn given_selected_custom_rust_file_rule_when_checking_then_owned_item_and_tree_f
             stdout.contains(test_case.expected_location),
             "{}: {stdout}",
             test_case.description
+        );
+        assert!(stdout.contains("src/lib.rs:70003:11"), "{stdout}");
+        assert_eq!(
+            stdout.matches(test_case.expected_code).count(),
+            2,
+            "{stdout}"
         );
         assert!(
             stdout.contains(test_case.expected_code),
@@ -834,6 +845,23 @@ fn given_file_fact_dependency_when_unrelated_file_changes_then_subject_cache_reu
             after_stdout.contains(test_case.changed_path),
             "{}: {after_stdout}",
             test_case.description
+        );
+
+        // The source is unchanged, but Cargo-derived file facts have changed.
+        write(
+            repository.path().join("Cargo.toml"),
+            "[package]\nname = \"renamed\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+        );
+        let metadata_changed = run();
+        let metadata_stdout = String::from_utf8_lossy(&metadata_changed.stdout);
+        assert_eq!(metadata_changed.status.code(), Some(1), "{metadata_stdout}");
+        assert!(
+            metadata_stdout.contains(test_case.unchanged_path),
+            "{metadata_stdout}"
+        );
+        assert!(
+            !metadata_stdout.contains(test_case.expected_reused_message),
+            "{metadata_stdout}"
         );
     }
 }
