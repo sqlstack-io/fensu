@@ -56,9 +56,9 @@ def rust_crate_identity(*, value: RustCrateFact) -> str:
 
 
 def rust_file_identity(*, value: RustFileFacts) -> str:
-    """Return one deterministic complete Rust source fact identity."""
+    """Digest complete Rust file facts without repeating them in dependency evidence."""
 
-    return json.dumps(
+    canonical: str = json.dumps(
         {
             "crate_identity": value.crate_identity,
             "crate_name": value.crate_name,
@@ -101,6 +101,7 @@ def rust_file_identity(*, value: RustFileFacts) -> str:
         separators=(",", ":"),
         sort_keys=True,
     )
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
 def web_file_identity(*, value: WebFileFacts) -> str:
