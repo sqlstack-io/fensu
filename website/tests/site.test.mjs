@@ -97,10 +97,7 @@ test('content and links remain available without JavaScript', async ({ browser, 
 
 test('built metadata, assets and all internal anchors resolve', async ({ page, request, baseURL }) => {
   const response = await page.goto('/');
-  expect((await response.text())).not.toContain('__SITE_URL__');
   expect((await response.text())).not.toContain('\u2014');
-  await expect(page.locator('link[rel="canonical"]')).toHaveAttribute('href', `${baseURL}/`);
-  await expect(page.locator('meta[property="og:image"]')).toHaveAttribute('content', `${baseURL}/assets/og-fensu.png`);
   const resources = await page.locator('img[src], script[src], link[href]').evaluateAll((elements) => elements.map((element) => element.src || element.href));
   for (const url of new Set(resources)) {
     if (url.startsWith(baseURL)) expect((await request.get(url)).ok(), url).toBe(true);
@@ -108,4 +105,18 @@ test('built metadata, assets and all internal anchors resolve', async ({ page, r
   for (const href of await page.locator('a[href^="#"]').evaluateAll((links) => links.map((link) => link.getAttribute('href')))) {
     await expect(page.locator(href)).toHaveCount(1);
   }
+  for (const path of ['/', '/docs/quickstart/']) {
+    await page.goto(path);
+    await expect(page.locator('link[rel="canonical"]')).toHaveAttribute('href', `https://fensu.io${path}`);
+    await expect(page.locator('meta[property="og:url"]')).toHaveAttribute('content', `https://fensu.io${path}`);
+    await expect(page.locator('meta[property="og:image"]')).toHaveAttribute('content', 'https://fensu.io/assets/og-fensu-social.png');
+    await expect(page.locator('meta[name="twitter:image"]')).toHaveAttribute('content', 'https://fensu.io/assets/og-fensu-social.png');
+  }
+  const sharingImage = await request.get('/assets/og-fensu-social.png');
+  expect(sharingImage.ok()).toBe(true);
+  expect(sharingImage.headers()['content-type']).toContain('image/png');
+  const { default: sharp } = await import('sharp');
+  expect(await sharp(await sharingImage.body()).metadata()).toMatchObject({ width: 1200, height: 630, hasAlpha: false });
+  expect(await (await request.get('/sitemap-index.xml')).text()).toContain('<loc>https://fensu.io/sitemap-0.xml</loc>');
+  expect(await (await request.get('/sitemap-0.xml')).text()).toContain('<loc>https://fensu.io/docs/quickstart/</loc>');
 });

@@ -41,17 +41,16 @@ The build writes `dist/`, sets absolute canonical and sharing URLs, and preserve
 on static legacy-path redirects. Serve `dist/` with a static server or run `npm run preview`.
 There is no production deployment workflow in this directory.
 
-Origin precedence is optional `--site https://example.com`, then `SITE_URL`, then Cloudflare's
-`CF_PAGES_URL`, then the non-production local fallback `http://localhost:4321`. Values must be
-HTTP(S) origins without paths, queries or credentials. Set `SITE_URL` to the approved production
-origin in the production environment when the final domain is known; leave it unset in preview
-environments so their canonical and sharing URLs follow their actual deployment URLs.
+Astro's `site` is set directly to `https://fensu.io`. Canonical, sharing and sitemap URLs always
+use this production origin, including local and branch-preview builds. Navigation, assets and
+search still work on the host serving the preview. No site-origin environment variable or CLI
+argument is required; existing `SITE_URL` and `CF_PAGES_URL` values are ignored.
 
 For Cloudflare Pages, set the root directory to `website`, output directory to `dist`,
 build command to `npm run build`, and `NODE_VERSION` to `22` (the same major as CI, at least
 22.23.4 as required by the locked Astro version). Pages installs the locked
-dependencies automatically and provides `CF_PAGES_URL`. No secrets or other environment variables
-are required for a Pages preview. Do not set a guessed custom production domain.
+dependencies automatically. No secrets or site-origin dashboard variables are required.
+An existing dashboard `SITE_URL` can be removed at any time.
 
 CI builds the unified site, checks internal pages/anchors and runs browser tests for website-only
 changes. Standalone Markdown changes run local-link checks. Mixed, unknown and workflow changes
@@ -65,8 +64,10 @@ or standalone `docs/`; runtime and bundled skill changes remain releasable.
   light/dark lockups and icons are cropped raster derivatives, not redrawn marks. The white ink
   becomes charcoal in the light version; orange is preserved.
 - Inter and IBM Plex Mono are self-hosted under `public/fonts/` with their license notices.
-- `public/assets/og-fensu.png` is the sharing image. It uses the original raster mark and the
-  homepage headline, not a screenshot of an application.
+- `public/assets/og-fensu-social.png` is the sharing image. It uses the original raster mark and
+  homepage headline on a near-black background, not an application screenshot. Important content
+  stays within the centered 630-pixel square of the 1200 × 630 image for small square previews.
+  The previous image remains available for cached links.
 - Homepage claims follow the released commands and public documentation. Call mapping is described
   as Python-specific; duplicated-code detection is advisory. The Python domain tree is an
   architecture illustration, not fabricated CLI output.
