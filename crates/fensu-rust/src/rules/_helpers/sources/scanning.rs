@@ -2,6 +2,7 @@
 
 use std::fs;
 use std::path;
+use std::rc::Rc;
 
 use crate::constants;
 use crate::models;
@@ -660,7 +661,7 @@ pub(crate) fn rust_files(repo_root: &path::Path, root: &path::Path) -> models::S
                     source_relative: relative_display(&canonical_root, &path),
                     path,
                     source,
-                    syntax,
+                    syntax: Rc::new(syntax),
                 });
             }
             Err(error) => violations.push(models::Violation::new(models::ViolationRequest {
