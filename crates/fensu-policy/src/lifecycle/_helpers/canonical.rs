@@ -1,15 +1,16 @@
 //! Canonical JSON encoding and hashing.
 
 use serde::Serialize;
-use serde_json::{Map, Value};
+use serde_json::Value;
 use sha2::{Digest, Sha256};
 
 use crate::lifecycle::constants::CACHE_IDENTITY_SCHEMA_VERSION;
 use crate::lifecycle::errors::LifecycleError;
 
 pub(crate) fn canonical_json<T: Serialize>(value: &T) -> Result<Vec<u8>, LifecycleError> {
-    let value = serde_json::to_value(value).map_err(serialization_error)?;
-    serde_json::to_vec(&sorted_value(value)).map_err(serialization_error)
+    let mut value = serde_json::to_value(value).map_err(serialization_error)?;
+    value.sort_all_objects();
+    serde_json::to_vec(&value).map_err(serialization_error)
 }
 
 pub(crate) fn fingerprint<T: Serialize>(value: &T) -> Result<String, LifecycleError> {
@@ -43,24 +44,6 @@ pub(crate) fn batch_fingerprint<T: Serialize>(
         );
     }
     fingerprint(&value)
-}
-
-fn sorted_value(value: Value) -> Value {
-    match value {
-        Value::Array(values) => Value::Array(values.into_iter().map(sorted_value).collect()),
-        Value::Object(values) => {
-            let mut keys = values.keys().cloned().collect::<Vec<_>>();
-            keys.sort();
-            let mut sorted = Map::new();
-            for key in keys {
-                if let Some(value) = values.get(&key) {
-                    sorted.insert(key, sorted_value(value.clone()));
-                }
-            }
-            Value::Object(sorted)
-        }
-        scalar => scalar,
-    }
 }
 
 fn serialization_error(error: serde_json::Error) -> LifecycleError {
