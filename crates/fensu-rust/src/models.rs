@@ -3,6 +3,7 @@
 use std::collections::BTreeMap;
 use std::collections::HashSet;
 use std::path;
+use std::rc::Rc;
 
 use crate::configuration::main::validate_repository_policy::validate_repository_policy;
 use crate::constants;
@@ -232,7 +233,7 @@ pub struct SourceFile {
     pub source_root_relative: String,
     pub source_relative: String,
     pub source: String,
-    pub(crate) syntax: RustSyntax,
+    pub(crate) syntax: Rc<RustSyntax>,
 }
 
 impl SourceFile {
@@ -268,7 +269,7 @@ impl SourceFile {
 }
 
 /// One shared parser result reused by built-in checks and serialized fact collection.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub(crate) struct RustSyntax {
     pub(crate) file: Option<syn::File>,
     pub(crate) error: Option<RustParseFailure>,
