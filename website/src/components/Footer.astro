@@ -1,0 +1,69 @@
+---
+import DefaultFooter from '@astrojs/starlight/components/Footer.astro';
+---
+
+<DefaultFooter />
+<div class="sqlstack-family">
+	<a class="sqlstack-brand" href="https://sqlstack.io">
+		<img class="sqlstack-light" src="/assets/sqlstack.png" alt="" width="28" height="23" />
+		<img class="sqlstack-dark" src="/assets/sqlstack-dark.png" alt="" width="28" height="23" />
+		<span>Part of SQLStack</span>
+	</a>
+	<nav aria-label="SQLStack tools">
+		<a href="https://sqlbuild.com">SQLBuild</a>
+		<a href="https://sqlclean.io">SQLClean</a>
+		<a href="https://docs.streambuild.dev">SQLTide</a>
+		<a href="/">Fensu</a>
+	</nav>
+</div>
+
+<style>
+	.sqlstack-family {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		justify-content: space-between;
+		gap: 16px;
+		margin-top: 20px;
+		padding-top: 20px;
+		border-top: 1px solid var(--sqb-line);
+		font-size: 13px;
+	}
+
+	.sqlstack-brand {
+		display: inline-flex;
+		align-items: center;
+		gap: 10px;
+	}
+
+	img {
+		width: 28px;
+		height: auto;
+	}
+
+	.sqlstack-dark,
+	:global(:root[data-theme='dark']) .sqlstack-light {
+		display: none;
+	}
+
+	:global(:root[data-theme='dark']) .sqlstack-dark {
+		display: block;
+	}
+
+	nav {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 8px 20px;
+	}
+
+	a {
+		color: var(--sqb-muted);
+		text-decoration: none;
+	}
+
+	a:hover {
+		color: var(--sqb-fg);
+		text-decoration: underline;
+		text-underline-offset: 4px;
+	}
+</style>

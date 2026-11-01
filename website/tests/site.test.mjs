@@ -11,7 +11,7 @@ test('navigation, keyboard focus and command copying work', async ({ page, conte
   await expect(mainNav.getByRole('link', { name: 'Quickstart' })).toHaveAttribute('href', '/docs/quickstart/');
   await page.keyboard.press('Tab');
   await expect(page.getByRole('link', { name: 'Skip to content' })).toBeFocused();
-  for (let index = 0; index < 5; index++) await page.keyboard.press('Tab');
+  for (let index = 0; index < 6; index++) await page.keyboard.press('Tab');
   await expect(github).toBeFocused();
   expect(await github.evaluate((element) => element.matches(':focus-visible') && getComputedStyle(element).outlineStyle === 'solid')).toBe(true);
   await mainNav.getByRole('link', { name: 'How it works' }).click();
@@ -50,6 +50,16 @@ for (const colorScheme of ['light', 'dark']) {
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
       expect(await page.locator('.brand img:visible').count()).toBe(1);
       if (mobile) expect(await page.evaluate(() => matchMedia('(pointer: coarse)').matches)).toBe(true);
+      const header = await page.locator('.header-inner').boundingBox();
+      const lockup = await page.locator('.brand-lockup').boundingBox();
+      const navigation = await page.getByRole('navigation', { name: 'Main', exact: true }).boundingBox();
+      expect(lockup.y - header.y).toBeGreaterThanOrEqual(12);
+      expect(header.y + header.height - lockup.y - lockup.height).toBeGreaterThanOrEqual(12);
+      expect(Math.abs(navigation.y + navigation.height / 2 - lockup.y - lockup.height / 2)).toBeLessThan(1);
+      await expect(page.getByRole('link', { name: 'by SQLStack', exact: true })).toHaveAttribute('href', 'https://sqlstack.io');
+      await expect(page.getByRole('link', { name: 'Part of SQLStack', exact: true })).toHaveAttribute('href', 'https://sqlstack.io');
+      await expect(page.getByRole('navigation', { name: 'SQLStack tools' }).getByRole('link')).toHaveText(['SQLBuild', 'SQLClean', 'SQLTide', 'Fensu']);
+      await expect(page.locator('.sqlstack-brand img:visible')).toHaveCount(1);
       const result = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa']).analyze();
       expect(result.violations).toEqual([]);
       await context.close();

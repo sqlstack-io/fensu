@@ -98,6 +98,16 @@ for (const colorScheme of ['light', 'dark']) {
         await page.waitForFunction(() => [...document.querySelectorAll('.expressive-code pre')].every((block) => block.scrollWidth <= block.clientWidth || block.tabIndex === 0));
         expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), route).toBe(true);
         await expect(page.locator('html')).toHaveAttribute('data-theme', colorScheme);
+        const header = await page.locator('.site-header').boundingBox();
+        const lockup = await page.locator('.brand-lockup').boundingBox();
+        const search = await page.locator('.header .search').boundingBox();
+        expect(lockup.y - header.y).toBeGreaterThanOrEqual(12);
+        expect(header.y + header.height - lockup.y - lockup.height).toBeGreaterThanOrEqual(12);
+        expect(Math.abs(search.y + search.height / 2 - lockup.y - lockup.height / 2)).toBeLessThan(1);
+        await expect(page.getByRole('link', { name: 'by SQLStack', exact: true })).toHaveAttribute('href', 'https://sqlstack.io');
+        await expect(page.getByRole('link', { name: 'Part of SQLStack', exact: true })).toHaveAttribute('href', 'https://sqlstack.io');
+        await expect(page.getByRole('navigation', { name: 'SQLStack tools' }).getByRole('link')).toHaveText(['SQLBuild', 'SQLClean', 'SQLTide', 'Fensu']);
+        await expect(page.locator('.sqlstack-brand img:visible')).toHaveCount(1);
         const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa']).analyze();
         expect(results.violations, route).toEqual([]);
         if (mobile && route.includes('configuration')) {

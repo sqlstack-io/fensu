@@ -63,6 +63,10 @@ or standalone `docs/`; runtime and bundled skill changes remain releasable.
 - `public/assets/fensu-original.png` preserves the supplied original logo byte for byte. The
   light/dark lockups and icons are cropped raster derivatives, not redrawn marks. The white ink
   becomes charcoal in the light version; orange is preserved.
+- `public/assets/sqlstack.png` and `sqlstack-dark.png` are unchanged SQLStack symbols from
+  [sqlstack-io/sqlstack](https://github.com/sqlstack-io/sqlstack/tree/9b37b9e128d36930e1fe0c5880606525100b228b/assets/icons),
+  used for the light/dark footer attribution. The header keeps Fensu's wordmark with a small
+  linked SQLStack byline; the hero remains Fensu-only.
 - Inter and IBM Plex Mono are self-hosted under `public/fonts/` with their license notices.
 - `public/assets/og-fensu-social.png` is the sharing image. It uses the original raster mark and
   homepage headline on a near-black background, not an application screenshot. Important content
