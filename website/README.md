@@ -64,8 +64,10 @@ or standalone `docs/`; runtime and bundled skill changes remain releasable.
   light/dark lockups and icons are cropped raster derivatives, not redrawn marks. The white ink
   becomes charcoal in the light version; orange is preserved.
 - Inter and IBM Plex Mono are self-hosted under `public/fonts/` with their license notices.
-- `public/assets/og-fensu.png` is the sharing image. It uses the original raster mark and the
-  homepage headline, not a screenshot of an application.
+- `public/assets/og-fensu-social.png` is the sharing image. It uses the original raster mark and
+  homepage headline on a near-black background, not an application screenshot. Important content
+  stays within the centered 630-pixel square of the 1200 × 630 image for small square previews.
+  The previous image remains available for cached links.
 - Homepage claims follow the released commands and public documentation. Call mapping is described
   as Python-specific; duplicated-code detection is advisory. The Python domain tree is an
   architecture illustration, not fabricated CLI output.

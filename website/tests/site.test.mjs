@@ -109,9 +109,14 @@ test('built metadata, assets and all internal anchors resolve', async ({ page, r
     await page.goto(path);
     await expect(page.locator('link[rel="canonical"]')).toHaveAttribute('href', `https://fensu.io${path}`);
     await expect(page.locator('meta[property="og:url"]')).toHaveAttribute('content', `https://fensu.io${path}`);
-    await expect(page.locator('meta[property="og:image"]')).toHaveAttribute('content', 'https://fensu.io/assets/og-fensu.png');
-    await expect(page.locator('meta[name="twitter:image"]')).toHaveAttribute('content', 'https://fensu.io/assets/og-fensu.png');
+    await expect(page.locator('meta[property="og:image"]')).toHaveAttribute('content', 'https://fensu.io/assets/og-fensu-social.png');
+    await expect(page.locator('meta[name="twitter:image"]')).toHaveAttribute('content', 'https://fensu.io/assets/og-fensu-social.png');
   }
+  const sharingImage = await request.get('/assets/og-fensu-social.png');
+  expect(sharingImage.ok()).toBe(true);
+  expect(sharingImage.headers()['content-type']).toContain('image/png');
+  const { default: sharp } = await import('sharp');
+  expect(await sharp(await sharingImage.body()).metadata()).toMatchObject({ width: 1200, height: 630, hasAlpha: false });
   expect(await (await request.get('/sitemap-index.xml')).text()).toContain('<loc>https://fensu.io/sitemap-0.xml</loc>');
   expect(await (await request.get('/sitemap-0.xml')).text()).toContain('<loc>https://fensu.io/docs/quickstart/</loc>');
 });
