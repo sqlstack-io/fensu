@@ -93,7 +93,7 @@ h1 span { display: block; }
 figcaption { color: var(--muted); font-size: 14px; }
 .languages { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 12px 22px; list-style: none; padding: 0; margin: 0; color: var(--muted); font-size: 14px; }
 .languages::before, .languages::after { content: ''; flex: 1; border-top: 1px solid var(--line); min-width: 24px; }
-.languages li + li::before { content: '/'; margin-right: 22px; color: var(--muted); }
+.languages li + li::before { content: '·'; margin-right: 22px; color: var(--muted); }
 .benefits { padding-top: 56px; }
 .benefit-grid { display: grid; grid-template-columns: repeat(3, 1fr); margin-top: 28px; }
 .benefit { display: flex; align-items: flex-start; gap: 16px; padding: 0 24px; border-left: 1px solid var(--faint-line); }
