@@ -163,39 +163,59 @@ jobs:
 
   native-package-smoke:
     needs: changes
-    if: needs.changes.outputs.full == 'true'
+    # Expand all required platform check names even when no native tests are selected.
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
+      - name: No native package work selected
+        if: needs.changes.outputs.full == 'false'
+        run: echo "Website/docs-only changes do not require native package tests."
       - uses: actions/checkout@v4
+        if: needs.changes.outputs.full == 'true'
       - uses: dtolnay/rust-toolchain@master
+        if: needs.changes.outputs.full == 'true'
         with:
           toolchain: 1.95.0
       - uses: Swatinem/rust-cache@v2
+        if: needs.changes.outputs.full == 'true'
       - uses: astral-sh/setup-uv@v6
+        if: needs.changes.outputs.full == 'true'
       - run: uv python install 3.12
+        if: needs.changes.outputs.full == 'true'
       - run: uv sync --locked --all-groups
+        if: needs.changes.outputs.full == 'true'
       - run: uv run fensu --version
+        if: needs.changes.outputs.full == 'true'
       - run: uv run pytest tests/e2e/src/fensu/cli/main/test_entry.py tests/e2e/src/fensu/cli/main/test_native_distribution.py -q
+        if: needs.changes.outputs.full == 'true'
 
   web-parser-analyzer-smoke:
     needs: changes
-    if: needs.changes.outputs.full == 'true'
+    # Keep the matrix contexts stable; gate setup and tests rather than expansion.
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
+      - name: No parser or analyzer work selected
+        if: needs.changes.outputs.full == 'false'
+        run: echo "Website/docs-only changes do not require parser or analyzer tests."
       - uses: actions/checkout@v4
+        if: needs.changes.outputs.full == 'true'
       - uses: dtolnay/rust-toolchain@master
+        if: needs.changes.outputs.full == 'true'
         with:
           toolchain: 1.95.0
       - uses: Swatinem/rust-cache@v2
+        if: needs.changes.outputs.full == 'true'
       - run: cargo test -p fensu-rust -p fensu-typescript -p fensu-svelte
+        if: needs.changes.outputs.full == 'true'
       - run: cargo test -p fensu-cli --lib
+        if: needs.changes.outputs.full == 'true'
       - run: "cargo test -p fensu-cli --test command test_check_rust::"
+        if: needs.changes.outputs.full == 'true'
 
   source-build:
     needs: changes
