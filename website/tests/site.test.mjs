@@ -59,6 +59,9 @@ for (const colorScheme of ['light', 'dark']) {
       await expect(page.getByRole('link', { name: 'by SQLStack', exact: true })).toHaveAttribute('href', 'https://sqlstack.io');
       await expect(page.getByRole('link', { name: 'Part of SQLStack', exact: true })).toHaveAttribute('href', 'https://sqlstack.io');
       await expect(page.getByRole('navigation', { name: 'SQLStack tools' }).getByRole('link')).toHaveText(['SQLBuild', 'SQLClean', 'SQLTide', 'Fensu']);
+      for (const [name, href] of Object.entries({ SQLBuild: 'https://sqlbuild.com', SQLClean: 'https://sqlclean.io', SQLTide: 'https://sqltide.io/', Fensu: '/' })) {
+        await expect(page.getByRole('navigation', { name: 'SQLStack tools' }).getByRole('link', { name, exact: true })).toHaveAttribute('href', href);
+      }
       await expect(page.locator('.sqlstack-brand img:visible')).toHaveCount(1);
       const result = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa']).analyze();
       expect(result.violations).toEqual([]);
