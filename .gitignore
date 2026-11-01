@@ -227,3 +227,6 @@ checkers.zip
 
 # Disposable repository-local Fensu cache
 .fensu/cache/
+
+# Local agent instructions
+/AGENTS.md
