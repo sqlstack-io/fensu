@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.28.2](https://github.com/sqlstack-io/fensu/compare/v0.28.1...v0.28.2) (2026-11-01)
+
+
+### Bug Fixes
+
+* reduce check memory by sharing syntax and avoiding JSON clones ([#117](https://github.com/sqlstack-io/fensu/issues/117)) ([f7a853a](https://github.com/sqlstack-io/fensu/commit/f7a853af22c7fe2f0417b2f0836cea26f2ba39b8))
+* **website:** simplify production URLs and language list ([7d0acab](https://github.com/sqlstack-io/fensu/commit/7d0acab677fb9ab4f9f6165f649cbc8036cc6c67))
+
+
+### Documentation
+
+* **website:** unify marketing site and documentation ([257c2c0](https://github.com/sqlstack-io/fensu/commit/257c2c0cab0189903d5f2ea873fac8c37bfe6ed1))
+
 ## [0.28.1](https://github.com/sqlstack-io/fensu/compare/v0.28.0...v0.28.1) (2026-10-31)
 
 
