@@ -1,0 +1,28 @@
+{
+  "name": "fensu-website",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.23.4"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "dev": "astro dev",
+    "preview": "astro preview",
+    "check:links": "python3 scripts/check_links.py dist",
+    "test": "playwright test"
+  },
+  "dependencies": {
+    "@astrojs/markdown-remark": "^7.3.5",
+    "@astrojs/starlight": "^0.42.4",
+    "@lucide/astro": "^1.48.0",
+    "@pagefind/default-ui": "^1.5.2",
+    "astro": "^7.3.5",
+    "sharp": "^0.35.4",
+    "starlight-llms-txt": "^0.12.0"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "4.11.1",
+    "@playwright/test": "1.58.2"
+  }
+}

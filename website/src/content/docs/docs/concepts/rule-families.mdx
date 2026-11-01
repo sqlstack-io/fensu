@@ -1,0 +1,258 @@
+---
+title: Rule Families
+description: "The seven core rule families, native pack namespaces, and stable rule-code structure Fensu ships."
+---
+
+Every Fensu rule belongs to a **family**. A family groups rules by subject, gives
+you a single selector to turn the whole group on or off, and carries a letter in
+each rule's code. Fensu ships seven core families, reserves `FP` for
+[native rule packs](/concepts/rule-packs), and reserves `X` for
+[custom rules](/concepts/custom-rules).
+
+## Rule codes
+
+A core rule code is `FF` + a family letter + exactly three digits, for example
+`FFL001` or `FFS131`.
+
+- `FF` marks a Fensu fault and is collision-free with other linters' prefixes.
+- The third letter is the family.
+- The number is a stable address within the family. The hundreds digit groups a
+  sub-theme (for example `FFS0xx` are size caps, `FFS1xx` are dataflow), and the
+  rule's **slug** carries the precise meaning.
+
+Because codes are structured, any prefix is a valid
+[selector](/concepts/configuration#selection): `FF` matches every core rule, `FFS`
+a family, `FFS1` a hundreds bucket, `FFS120` one rule.
+
+Codes are permanent. A removed or renamed rule's code is retired forever and never
+reused, and existing rules are never renumbered. Fensu-shipped native packs use
+`FP` plus a pack namespace, such as `FPDG022` for Dagster. Retained core aliases
+preserve the family and number after that namespace, such as `FPDGA001` for
+`FFA001`. Custom rules must use the `X` namespace (`X` + optional uppercase letters
++ digits, like `XDB001`) and are rejected at load if they start with `FF` or `FP`.
+See [Native rule packs](/concepts/rule-packs) for shipped namespaces and
+[Custom rules](/concepts/custom-rules#codes-and-namespaces) for how teams carve
+their own `X` sub-namespaces.
+
+## The families
+
+| Selector | Family | Subject |
+| --- | --- | --- |
+| `FFL` | Layers | Imports, boundaries, dependency direction. |
+| `FFR` | Roles | Module taxonomy: what a file may contain and where it lives. |
+| `FFS` | Shape | Function size caps and dataflow discipline. |
+| `FFN` | Naming | Name-to-behavior contracts. |
+| `FFH` | Hygiene | Clarity and smell: docstrings, comments, raises, decision literals. |
+| `FFT` | Tests | Test-suite layout, naming, and parametrization conventions. |
+| `FFA` | Annotations | Type-annotation completeness. |
+
+Which families apply depends on the file's [scope](/concepts/architecture-model#scopes):
+product roots and tooling get the structural families (FFL, FFR, FFS, FFN, FFH,
+FFA), while the tests scope gets FFT and FFA.
+
+## FFL: Layers
+
+Layers rules govern which modules and packages may import which, so boundaries stay
+intact. This is the family most directly aimed at keeping a codebase from tangling.
+
+| Code | Slug | Checks |
+| --- | --- | --- |
+| `FFL001` | absolute-imports-only | Relative imports hide package boundaries. |
+| `FFL002` | no-star-imports | Star imports hide names from boundary analysis. |
+| `FFL101` | no-sibling-package-internals | Do not reach into a sibling owner's internals; import its published surface. |
+| `FFL102` | no-cross-package-internals | Import only via a package's public surface. |
+| `FFL103` | no-internal-public-surface-imports | Internal code imports concrete owning modules, not the bare package surface. |
+| `FFL110` | no-cross-file-use-of-helper-private-class | A `_`-prefixed class in `_helpers/` is file-only; shared classes move to `classes/`. |
+| `FFL301` | no-runtime-imports-from-tooling | Runtime code must not import from the tooling scope. |
+
+For `FFL101` and `FFL102`, ownership is **role-boundary-relative**: a module's
+owner is everything before its first role segment. Imports within one owner are
+free (`main/` to its own `_helpers/`, between modules of one `_helpers/` tree
+including its buckets, into the owner's `classes/`). Imports across owners must
+enter through the owner's public surface: its role files or role packages
+(`models`, `types`, `constants`, `exceptions`, `classes`) or its `main/` entry
+modules. Another owner's `_helpers/` internals always fault. If an importable path
+has no role segment, Fensu infers its containing package as the owner (or the
+package itself for an `__init__.py`); a direct non-role module is internal, not a
+public surface.
+
+## FFR: Roles
+
+The largest family, and the clearest separation from tools that only look at the
+import graph: FFR looks *inside* modules. It enforces what each role file may
+contain, where declarations may live, package layout, entry-module shape, and file
+size.
+
+Representative rules:
+
+| Code | Slug | Checks |
+| --- | --- | --- |
+| `FFR001` | models-only-models | `models.py` holds only model declarations. |
+| `FFR101` | model-declaration-outside-models | A model declared outside `models.py`. |
+| `FFR204` | banned-generic-package-name | No `shared`, `common`, `util`, `misc`, and similar package names at any depth. |
+| `FFR301` | helpers-package-layout | `_helpers/` is flat or fully grouped into bounded buckets, never mixed. See [containers](/concepts/architecture-model#containers-flat-or-grouped). |
+| `FFR306` | top-level-domain-shape | A domain is a role leaf or a branch of named subdomains, never both. See [leaf or branch](/concepts/architecture-model#domains-leaf-or-branch). |
+| `FFR307` | top-level-direct-modules | Runtime roots and top-level domains do not contain ad hoc direct modules; deterministic root [public facades](/concepts/architecture-model#root-public-facades) are exempt. |
+| `FFR308` | shared-domain-prefix | Repeated first-token domain prefixes become an owning branch domain. See [shared prefixes](/concepts/architecture-model#shared-domain-prefixes). |
+| `FFR310` | public-facade-import-direction | Runtime code imports a facade's owning domain directly; facade imports are reserved for tests, tooling, and external consumers. |
+| `FFR401` | entry-module-shape | An entry file defines one public function and at most two private ones (a limit on functions in the file, not on what they may call). See [entry modules](/concepts/architecture-model#entry-modules). |
+| `FFR402` | init-module-empty | `__init__.py` is docstring-only. |
+| `FFR403` | no-reexport-shim | Internal modules do not exist only to re-export imports; deterministic root public facades are exempt. |
+| `FFR406` | public-surface-shape | A root `__init__.py` contains only a docstring, imports, and at most one `__all__` declaration. |
+| `FFR501` | classes-one-class-per-module | One class per module in `classes/`. |
+| `FFR601` | source-file-line-count | A file must not exceed the line-count threshold. |
+| `FFR701` | tooling-entrypoint-shape | A direct tooling script is a thin command adapter. |
+| `FFR704` | rules-role-content | A `rules/` module holds only imports and `@rule` functions. |
+| `FFR706` | descriptive-rule-module-names | Rule modules use policy names, not filenames such as `fft104.py` or `xac001.py`. |
+| `FFR707` | custom-rule-test-coverage | Every configured custom rule has statically visible public-harness cases. |
+
+FFR spans role-file content (`FFR0xx`), misplaced declarations (`FFR1xx`), naming
+(`FFR2xx`), package layout (`FFR3xx`), surface shape (`FFR4xx`), class and helper
+shape (`FFR5xx`), file size (`FFR6xx`), and tooling layout (`FFR7xx`).
+
+`FFR307`, `FFR403`, and `FFR310` work together for a recognized Python root
+facade. The first two permit the bounded facade shape; the third prevents product
+runtime code from depending inward on that outward-facing compatibility surface.
+See [Root public facades](/concepts/architecture-model#root-public-facades) for the
+recognized shapes and import direction.
+
+## FFS: Shape
+
+Shape rules keep functions small and their dataflow explicit. Several of them
+target the way generated code tends to sprawl.
+
+| Code | Slug | Checks |
+| --- | --- | --- |
+| `FFS001` | too-many-statements | Statement cap on `main/` orchestrator functions. |
+| `FFS002` | too-many-distinct-calls | Distinct-callee cap on `main/` functions. |
+| `FFS003` | too-many-locals | Assigned-local cap on `main/` functions. |
+| `FFS010` | max-arguments | Global argument-count cap on any function. |
+| `FFS011` | max-statements-global | Loose global statement floor on any function. |
+| `FFS101` | meaningful-project-result-discarded | A meaningful returned value must be used, not silently dropped. |
+| `FFS110` | default-mutation-return | A function that mutates a parameter must return it. |
+| `FFS120` | keyword-only-arguments | Parameters past the positional threshold must be keyword-only. |
+| `FFS130` | no-outer-state-mutation | No rebinding or mutation of module globals or closure captures. |
+| `FFS131` | no-complex-comprehensions | One generator per comprehension, no nested comprehension. |
+| `FFS201` | mutable-result-model | `models.py` dataclasses must be `frozen=True`. |
+
+`FFS102` (parameter-mutation-in-phase-helpers) is the one core rule that is **opt-in**:
+it ships disabled and runs only when named explicitly by code. It is the stricter
+input-immutability stance for teams adopting the full phase model, layered on top
+of the default `FFS110`.
+
+## FFN: Naming
+
+Naming rules enforce that a name means what it claims. This is the "dishonest
+functions" family.
+
+| Code | Slug | Checks |
+| --- | --- | --- |
+| `FFN001` | validator-must-not-return | `validate_*` and `enforce_*` functions must not return a meaningful value. |
+| `FFN002` | predicate-must-return-bool | `is_*`, `has_*`, `can_*`, and `supports_*` functions must declare `bool`, `TypeGuard`, or `TypeIs`. |
+| `FFN003` | value-name-must-return-value | `get_*`, `to_*`, and `as_*` functions must not declare a no-value return such as `None`. |
+| `FFN004` | iterator-name-must-produce-iterator | `iter_*` functions must contain an owned `yield` or declare an iterator or generator return. |
+
+Each diagnostic offers two safe directions: honor the name or preserve the
+behavior and rename it. For example, an eager `iter_items() -> list[Item]` can
+return an iterator or become `collect_items`.
+
+The shipped patterns and behaviors are configured through
+[`contracts`](/concepts/configuration#contracts), where projects can add their own
+name globs without changing these rule codes.
+
+## FFH: Hygiene
+
+Hygiene rules target clarity and smells that hide meaning.
+
+| Code | Slug | Checks |
+| --- | --- | --- |
+| `FFH001` | single-line-docstrings | Docstrings are a single line. |
+| `FFH002` | no-standalone-comments | No standalone comments the tooling would depend on. |
+| `FFH003` | no-raw-builtin-raise | Raise structured errors, not bare built-ins. |
+| `FFH004` | no-assert-in-runtime | No `assert` in runtime code. |
+| `FFH005` | no-swallowed-exception-probe | No `except` that silently swallows. |
+| `FFH006` | no-complex-comprehensions-in-tooling | The comprehension readability limit, in tooling. |
+| `FFH007` | no-unnamed-string-decisions | String literals must not directly control comparisons. |
+| `FFH008` | no-magic-numeric-comparisons | Numeric literals other than `-1`, `0`, `1` must not control comparisons. |
+| `FFH009` | no-import-time-side-effects | No standalone calls executed at import time. |
+
+`FFH007` and `FFH008` push decisions to compare against named concepts (enum
+members or named constants) instead of unexplained literals. They report the
+literal expression and do not infer runtime values. `FFH009` was previously
+numbered `FFR206`; import-time discipline is hygiene, not module taxonomy.
+
+## FFT: Tests
+
+Test rules make a test suite readable and consistent. They apply only in the tests
+scope. The conventions include a mirrored layout, given-when-then naming, and
+dataclass-backed parametrization.
+
+Representative rules:
+
+| Code | Slug | Checks |
+| --- | --- | --- |
+| `FFT001` | test-layout | Test directories mirror the source tree. |
+| `FFT002` | test-scope | Test scopes come from the configured [`test_scopes`](/concepts/configuration#test-scopes). |
+| `FFT104` | no-if-in-tests | Tests and local test helpers contain no conditional control flow. |
+| `FFT204` | local-test-types-file | Each test module has a sibling `_test_types.py`. |
+| `FFT301` | test-file-name | Test files start with `test_`. |
+| `FFT302` | test-function-name | `test_given_<state>_when_<action>_then_<expectation>`. |
+| `FFT401` | dataclass-parametrize | Tests use `@pytest.mark.parametrize` with a dataclass-backed case. |
+| `FFT414` | description-lambda-ids | Parametrize ids come from `lambda case: case.description`. |
+
+FFT groups layout and mirroring (`FFT0xx`), module hygiene (`FFT1xx`), test-role
+files (`FFT2xx`), test file and function naming (`FFT3xx`), and dataclass-backed
+parametrization (`FFT4xx`).
+
+FFT104 applies to every test function, not only parametrized tests, and to
+top-level functions, async functions, and classes in `helpers.py` and
+`_test_helpers.py`. It detects `if`, `match`, conditional expressions, and filtered
+simple comprehensions. It does not currently treat `while` or `try` as conditionals.
+Use parametrization when setup and assertions stay branch-free. Otherwise split the
+behavior into separate tests or helper functions.
+
+## FFA: Annotations
+
+Annotation rules require types to be explicit, so they are in the text the reader
+(and a type checker, and an LLM) can see. FFA runs over both the product and test
+scopes.
+
+| Code | Slug | Checks |
+| --- | --- | --- |
+| `FFA001` | parameter-annotation | Every function parameter is annotated. |
+| `FFA002` | return-annotation | Every function has a return annotation. |
+| `FFA101` | module-variable-annotation | Module-level variables are annotated. |
+| `FFA102` | class-attribute-annotation | Class attributes are annotated. |
+| `FFA103` | local-variable-annotation | Non-scalar local variables are annotated on first binding. |
+
+All five are on by default. `FFA103` exempts direct scalar literal bindings whose
+type is already explicit in the value, including strings, bytes, booleans, numeric
+literals, signed numeric literals, and f-strings:
+
+```python
+attempts = 3
+label = f"job-{job_id}"
+```
+
+Collections, constructor and function-call results, comprehensions, attribute
+reads, and other inferred values still require an annotation on first binding:
+
+```python
+items: list[Item] = load_items()
+by_id: dict[str, Item] = {item.id: item for item in items}
+```
+
+See [Philosophy](/philosophy#compensating-for-llm-blind-spots) for why explicit
+annotations remain the default for those less obvious values.
+
+## Inspecting rules
+
+Look up any rule's full metadata, including its message and remediation, with
+[`fensu rule`](/cli/rule):
+
+```bash
+fensu rule FFS131
+```
+
+Generate agent-facing guidance from your active rules with
+[`fensu skills`](/cli/skills).

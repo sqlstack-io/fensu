@@ -1,0 +1,214 @@
+---
+title: Dagster
+description: "Activate the standalone Dagster architecture policy, follow its intended repository shape, and configure autoload boundaries."
+---
+
+The Dagster rule pack is a complete, Fensu-shipped architecture policy for Dagster
+repositories. It combines native Dagster rules with aliases of compatible core
+rules, replacing or omitting core behavior where Dagster needs a different model.
+The complete pack runs in Rust without loading Python rules.
+
+## Activate the pack
+
+Activate the Dagster pack and select its complete standalone policy with:
+
+```toml
+roots = ["src/my_package"]
+tests = ["tests"]
+tooling = ["scripts"]
+rule_packs = ["dagster"]
+select = ["FPDG"]
+```
+
+`rule_packs` makes the Dagster catalogue available; `select` places its rules in
+the blocking tier. Both are required: activating `dagster` does not select its
+rules, and `FPDG` matches no pack identities until the pack is activated.
+
+The Dagster pack is a standalone policy, not a small supplement to the core
+default. It includes retained core behavior through aliases and replaces or omits
+core rules where Dagster needs a different architecture. Use `select = ["FPDG"]`
+unless you are deliberately assembling individual non-overlapping identities.
+
+## Intended repository shape
+
+The pack is based on a production Dagster repository, generalized so package and
+domain names are not policy. This representative tree shows the architecture the
+rules are designed to preserve:
+
+```text
+src/my_package/
+├── __init__.py
+├── definitions.py                 # package-level Dagster entrypoint
+├── defs/
+│   ├── __init__.py
+│   ├── assets/
+│   │   └── <domain>/
+│   │       └── <asset_unit>/
+│   │           ├── __init__.py
+│   │           ├── assets.py      # one Dagster asset/factory definition
+│   │           ├── main.py        # implementation and result contract
+│   │           ├── models.py      # optional owner-local support
+│   │           ├── types.py
+│   │           ├── constants.py
+│   │           ├── exceptions.py
+│   │           └── _helpers/      # private support for this asset unit
+│   ├── jobs/
+│   │   └── <domain>/
+│   │       ├── <capability>.py    # semantic job definition modules
+│   │       ├── _models.py         # optional owner-private support
+│   │       ├── _types.py
+│   │       ├── _constants.py
+│   │       ├── _exceptions.py
+│   │       └── _helpers/
+│   ├── schedules/
+│   │   └── <domain>/
+│   │       └── <capability>.py
+│   ├── sensors/
+│   │   └── <domain>/
+│   │       └── <capability>.py
+│   └── resources/
+│       ├── <capability>/
+│       │   ├── __init__.py
+│       │   ├── resource.py        # resource, factory, and definitions binding
+│       │   ├── models.py
+│       │   ├── types.py
+│       │   ├── constants.py
+│       │   ├── exceptions.py
+│       │   ├── _helpers/          # private functions
+│       │   └── _classes/          # private collaborator classes
+│       └── asset_configs/
+│           └── <domain>/
+│               ├── pipeline.py    # optional shared pipeline config
+│               └── <capability>.py
+└── utils/
+    └── <capability>/               # explicit reusable runtime utilities
+        ├── __init__.py
+        ├── models.py
+        ├── types.py
+        ├── constants.py
+        ├── exceptions.py
+        └── <operation>.py
+
+tests/
+├── unit/
+├── integration/
+└── e2e/
+
+scripts/                            # configured tooling root, outside runtime
+```
+
+This is a vocabulary and ownership model, not a requirement to create every
+directory. Add only the roles a project uses, replace placeholders with semantic
+business or technical names, and keep empty `__init__.py` files empty.
+
+The important seams are:
+
+- `definitions.py` is the package entrypoint; runtime implementation stays below
+  `defs/` or `utils/`.
+- A callback-backed asset leaf pairs `assets.py` with `main.py`. `assets.py`
+  declares the Dagster surface and delegates directly; `main.py` owns
+  implementation and an explicit materialization, event-stream, or intentional
+  non-returning contract. Factory-backed assets use the sanctioned `assets`
+  assignment shape instead.
+- Jobs, schedules, and sensors are grouped first by role, then domain, then named
+  by capability. Generic wrappers such as `main.py`, `definitions.py`, or
+  `processing.py` do not replace semantic module names.
+- Automation-private `_models.py`, `_types.py`, `_constants.py`, `_exceptions.py`,
+  and `_helpers/` belong to their immediate role/domain directory and are not
+  shared across owners.
+- Each operational resource capability owns `resource.py` plus explicit support
+  roles. Private function support goes in `_helpers/`; private collaborator classes
+  go in `_classes/`.
+- Reusable runtime behavior belongs in an explicit `utils/<capability>/` boundary,
+  not a generic `common`, `shared`, `lib`, or top-level helper package.
+- Tooling is a one-way boundary: scripts may import runtime code, but runtime code
+  does not import scripts.
+
+## Pack codes and aliases
+
+Fensu reserves `FP` for shipped native packs. The Dagster namespace is `FPDG`:
+
+- Native Dagster policies use codes such as `FPDG001` and `FPDG022`.
+- Retained core aliases preserve the core family and number. For example,
+  `FFA001` becomes `FPDGA001`, and `FFT401` becomes `FPDGT401`.
+- `FPDG` selects every enabled-by-default identity in the pack.
+- A narrower prefix such as `FPDGA` selects one alias family.
+- An exact code such as `FPDG022` selects one policy.
+
+An alias executes the same native implementation as its core target while reports
+keep the selected pack identity visible:
+
+```text
+FPDGA001 (alias FFA001)  function parameter 'value' must define a type annotation
+```
+
+The canonical code and its alias cannot occupy the same policy tier. For example,
+`select = ["FFA001", "FPDGA001"]` is rejected because both names would execute the
+same implementation.
+
+The Dagster catalogue contains 23 native policies and 101 retained core aliases.
+Of its 123 identities, 122 are enabled by default. `FPDGS102`, the alias of the
+opt-in core rule `FFS102`, runs only when selected by its exact code.
+
+## Dagster native policies
+
+| Code | Policy | Checks |
+| --- | --- | --- |
+| `FPDG001` | dagster-asset-package-layout | Asset packages use `assets.py` and `main.py` without legacy pipeline files. |
+| `FPDG002` | dagster-assets-module-shape | `assets.py` exposes one asset, multi-asset, or asset factory and no private helpers. |
+| `FPDG003` | dagster-assets-delegate-to-main | Asset callbacks import and directly delegate to the sibling `main.py`. |
+| `FPDG004` | dagster-main-module-shape | Dagster `main.py` contains imports and one `main()` with an explicit result contract. |
+| `FPDG005` | dagster-asset-callback-signature | Context is positional and injected dependencies are keyword-only. |
+| `FPDG006` | dagster-import-boundaries | Asset imports stay within approved owner, dependency, utility, and resource boundaries. |
+| `FPDG007` | dagster-definition-role-public-surface | Job, schedule, and sensor modules expose only Dagster definitions. |
+| `FPDG008` | dagster-definition-role-module-layout | Automation trees use semantic modules and sanctioned private support roles. |
+| `FPDG009` | dagster-definition-private-support-imports | Private automation support stays inside its owning directory. |
+| `FPDG010` | dagster-operational-resource-layout | Operational resources use explicit resource and support roles. |
+| `FPDG011` | dagster-definition-provider-type-honesty | Definitions providers are not cast or annotated as another Dagster definition type. |
+| `FPDG012` | dagster-asset-config-module-shape | Asset configs use semantic modules with one concrete config and same-file binding. |
+| `FPDG013` | no-dynamic-or-string-module-references | Dynamic imports and string-based project module references are forbidden. |
+| `FPDG014` | dagster-model-declaration-placement | Runtime models use a models role or an automation-private `_models.py`. |
+| `FPDG015` | dagster-exception-declaration-placement | Custom exceptions use an exceptions role or an automation-private `_exceptions.py`. |
+| `FPDG016` | private-helper-boundary | `_helpers` and `_classes` imports stay inside their owning package subtree. |
+| `FPDG017` | private-classes-role-shape | `_classes` modules contain only private classes and imports. |
+| `FPDG018` | source-root-path-allowlist | Source-root paths belong to the Dagster architecture allowlist. |
+| `FPDG019` | tooling-import-boundary | Production modules do not import from tooling roots. |
+| `FPDG020` | runtime-package-owner-names | Runtime package directories identify an owner instead of using generic names. |
+| `FPDG021` | test-root-directory-allowlist | Test-root directories use supported scopes. |
+| `FPDG022` | dagster-autoload-external-discovery | Dagster autoload does not reach external discovery outside approved loader boundaries. |
+| `FPDG023` | dagster-type-declaration-placement | Type declarations use a types role or an automation-private `_types.py`. |
+
+## Approved autoload boundaries
+
+`FPDG022` follows calls from module scope and `@dagster.definitions` providers. It
+reports subprocess, network, database, SSH, and remote-client discovery reached
+during autoload. Put deliberate external discovery behind an exact project
+function and configure that boundary:
+
+```toml
+[rule_options.FPDG022]
+approved_loader_boundaries = [
+  "my_package.defs.resources.metadata.loader.load_metadata",
+]
+```
+
+The value is a list of exact fully qualified project functions, not a module or
+glob. Ordinary runtime functions are not treated as autoload roots.
+
+## Native execution
+
+Pack-native rules and retained aliases execute without starting Python. This keeps
+checks deterministic and cacheable in repositories that do not load custom Python
+rules. Adding `rule_paths`, `rule_modules`, or custom-rule options still requires
+the custom-rule metadata host for those custom rules; activating a native pack by
+itself does not.
+
+Inspect any activated pack identity with [`fensu rule`](/cli/rule):
+
+```bash
+fensu rule FPDG022
+fensu rule FPDGA001
+```
+
+See [Native rule packs](/concepts/rule-packs) for the general activation,
+namespace, alias, and selection model shared by shipped packs.

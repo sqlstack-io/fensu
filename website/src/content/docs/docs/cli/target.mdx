@@ -1,0 +1,41 @@
+---
+title: fensu target
+description: "Safely add a SvelteKit analyzer target to an existing explicit-target configuration."
+---
+
+`fensu target add` appends a SvelteKit target to an existing `fensu.toml`:
+
+```bash
+fensu target add NAME --preset sveltekit --path PATH
+```
+
+```bash
+fensu target add web --preset sveltekit --path frontend
+```
+
+The generated target uses the native Svelte analyzer, activates
+`rule_packs = ["sveltekit"]`, uses `roots = ["src"]` with a mirrored test
+layout, and selects `FPSK`.
+
+## Requirements
+
+- `fensu.toml` must already contain explicit `[targets.<name>]` blocks. The command
+  does not convert a legacy flat configuration or edit `[tool.fensu]`.
+- `NAME` must be new and contain only ASCII letters, digits, `-`, or `_`.
+- `PATH` must be an existing repository-relative directory without symlinks or
+  parent traversal, and it must contain a non-symlink `src/` directory.
+- `--preset sveltekit` and `--path PATH` are both required.
+
+Fensu validates the original and resulting documents and performs a guarded write.
+An invalid target, concurrent edit, or unsafe path leaves the file unchanged.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="TypeScript and SvelteKit" icon="code" href="/concepts/analyzers/typescript-sveltekit">
+    Decide when to detect, add, and gradually adopt a web analyzer target.
+  </Card>
+  <Card title="Configuration" icon="gear" href="/concepts/configuration#named-analyzer-targets">
+    Configure Python and web projects under one repository policy.
+  </Card>
+</CardGroup>

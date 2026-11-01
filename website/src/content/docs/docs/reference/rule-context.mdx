@@ -1,0 +1,441 @@
+---
+title: RuleContext
+description: "The public analysis zones, fault constructors, helpers, and models available to custom rules."
+---
+
+`RuleContext` is the supported interface between a [custom rule](/concepts/custom-rules)
+and Fensu's analysis engine. It is passed to every rule check as `ctx`. Import all
+public protocols, handles, locations, facts, and dependency models from `fensu`,
+never from internal package paths.
+
+```python
+def check(*, file: File, ctx: RuleContext) -> list[Fault]: ...
+def check(*, project: Project, ctx: RuleContext) -> list[Fault]: ...
+def check(*, repository: Repository, ctx: RuleContext) -> list[Fault]: ...
+```
+
+The context groups its surface into current-file facts, project/tree facts, an
+architecture graph, text and syntax analysis, fault construction, position helpers,
+and configuration. Legacy Python callbacks may ignore the context and walk their
+`ast.Module` directly when they need unrestricted Python AST access.
+
+## `ctx.facts`
+
+Backend-neutral semantic facts for the current file, computed once and shared by all
+rules through a single traversal.
+
+| Call | Returns | Purpose |
+| --- | --- | --- |
+| `annotations()` | `AnnotationFacts` | Missing parameter, return, local, and variable annotations. |
+| `comments()` | `tuple[CommentFact, ...]` | Source comments in token order. |
+| `dataclasses()` | `tuple[DataclassFact, ...]` | Top-level dataclass declarations and field metadata. |
+| `function_conditionals()` | `tuple[FunctionConditionalFact, ...]` | Conditional control flow grouped by owning function. |
+| `functions()` | `FunctionFacts` | Reusable structural function metrics. |
+| `function_contracts()` | `tuple[FunctionContractFact, ...]` | Descriptive name, annotation, yield, and return facts. |
+| `hygiene()` | `HygieneFacts` | Syntax-based hygiene locations. |
+| `meaningful_returns(name_patterns=())` | `tuple[MeaningfulReturnFact, ...]` | The first meaningful return per function; `name_patterns` filters to matching function names. |
+| `module_declarations()` | `ModuleDeclarationFacts` | Top-level statements and classified declarations. |
+| `outer_state_mutations()` | `tuple[OuterStateMutationFact, ...]` | Direct mutations resolving to outer-scope state. |
+| `parameter_mutations()` | `tuple[ParameterMutationFact, ...]` | First direct mutations of function parameters. |
+| `project_calls()` | `ProjectCallFacts` | Discarded calls resolvable within the project. |
+| `project_functions()` | `tuple[ProjectFunctionFact, ...]` | Top-level function result contracts. |
+| `references()` | `ReferenceFacts` | Import and attribute-reference facts. |
+| `test_functions()` | `tuple[PytestFunctionFact, ...]` | Syntax metadata for test functions. |
+| `test_module()` | `PytestModuleFacts` | Module-shape metadata for test convention policy. |
+| `complex_comprehensions()` | `tuple[SourceLocation, ...]` | Comprehensions combining generators or nesting another comprehension. |
+| `top_level_definition_conditionals()` | `tuple[SourceLocation, ...]` | Test-policy conditionals owned by top-level definitions. |
+| `evaluate_rule_calls()` | `tuple[EvaluateRuleCallFact, ...]` | Statically recognized public rule-harness calls. |
+
+<Note>
+  `evaluate_rule_calls()` supports policy analysis such as FFR707. Custom-rule tests
+  should use the [public testing harness](/concepts/custom-rules#testing-rules)
+  rather than inspect these facts directly.
+</Note>
+
+## `ctx.project`
+
+Cross-file and filesystem queries. Every call records its input for cache
+invalidation, so a result stays reusable only while its answers hold. Pass the file
+whose result depends on the query as `requester`, normally `ctx.path`.
+
+| Call | Returns | Purpose |
+| --- | --- | --- |
+| `analysis(requester, path)` | `Analysis \| None` | Full analysis for another project file. |
+| `dataclasses(requester, path)` | `tuple[DataclassFact, ...]` | Dataclass facts for another file. |
+| `module_function(requester, module_name, function_name)` | `ProjectFunctionFact \| None` | A function contract from a resolvable module. |
+| `exists(requester, path)` | `bool` | Whether a path exists. |
+| `is_file(requester, path)` | `bool` | Whether a path is a file. |
+| `is_dir(requester, path)` | `bool` | Whether a path is a directory. |
+| `directory_entries(requester, path)` | `tuple[Path, ...]` | Direct children of a directory. |
+| `glob(requester, path, pattern, recursive=False)` | `tuple[Path, ...]` | Path matches for a pattern. |
+| `python_anchor(requester, path)` | `Path \| None` | The Python ownership anchor for a package directory. |
+| `dependencies()` | `tuple[ProjectDependency, ...]` | All requester-to-path dependencies observed so far. |
+| `dependencies_for(requester)` | `tuple[ProjectDependency, ...]` | Dependencies observed for one requester. |
+
+<Warning>
+  Read project state only through `ctx.project`, never the filesystem directly.
+  Untracked reads break cache correctness and fail
+  [cacheability verification](/concepts/custom-rules#keeping-custom-rules-cacheable).
+</Warning>
+
+### `ctx.project.tree`
+
+An immutable, deterministic view of the authoritative discovered project. It does
+not perform arbitrary filesystem discovery. Every query records its exact answer
+against the active file or project-rule requester.
+
+| Call | Returns | Purpose |
+| --- | --- | --- |
+| `paths` | `tuple[ProjectPath, ...]` | All discovered files and directories. |
+| `files` | `tuple[File, ...]` | All discovered source identities. |
+| `children(path=".")` | `tuple[ProjectPath, ...]` | Immediate discovered children. |
+| `descendants(path=".")` | `tuple[ProjectPath, ...]` | All discovered descendants. |
+| `glob(pattern)` | `tuple[ProjectPath, ...]` | Discovered paths matching a confined POSIX glob. |
+| `files_under(path=".")` | `tuple[File, ...]` | Discovered files at or beneath a path. |
+| `position(path)` | `FilePosition \| None` | Analyzer, scope, module/package, domain, role, and entry-point facts for a file. |
+
+`ProjectPath` rejects absolute paths, parent traversal, Windows path spellings, and
+unsupported path objects. `FilePosition` includes `path`, `analyzer`, `source_kind`,
+`scope`, `scope_root`, `module`, `package`, `domain_parts`, `role`, `role_depth`,
+`is_entry_module`, and `is_main_module`.
+
+## `ctx.graph`
+
+For Python, TypeScript, and Svelte targets, an immutable architecture graph
+resolved from static imports and authoritative discovered modules. Unresolved
+imports remain explicit and dynamic imports are not represented. Web graph
+resolution reuses the native analyzer's static TypeScript, JavaScript, SvelteKit,
+and configured alias resolution.
+
+| Call | Returns | Purpose |
+| --- | --- | --- |
+| `nodes` | `tuple[ModuleNode, ...]` | Every discovered graph node. |
+| `node(file_or_path)` | `ModuleNode \| None` | One focused module lookup. |
+| `imports(node_or_file_or_path)` | `tuple[ImportEdge, ...]` | Authored imports and their resolution status. |
+| `dependencies(node_or_file_or_path)` | `tuple[ModuleNode, ...]` | Resolved direct targets. |
+| `dependents(node_or_file_or_path)` | `tuple[ModuleNode, ...]` | Resolved direct importers. |
+| `cycles()` | `tuple[ImportCycle, ...]` | Deterministic statically proven cycles. |
+
+`ImportEdge` preserves the `AuthoredImport`, source location, resolved module name,
+`ImportResolution`, and optional target node. Graph identities include analyzer and
+source-kind ownership so they remain safe as additional analyzers gain graphs.
+
+## `ctx.rust`
+
+For Rust targets, a versioned immutable workspace fact view transferred from the
+native analyzer. It contains no `syn` or Cargo metadata objects.
+
+| Call | Returns | Purpose |
+| --- | --- | --- |
+| `crates` | `tuple[RustCrateFact, ...]` | All Cargo workspace package, target and dependency identities. |
+| `files` | `tuple[RustFileFacts, ...]` | All selected Rust file, module, source, item and `use` facts. |
+| `crate(identity)` | `RustCrateFact \| None` | One focused crate lookup by stable workspace identity. |
+| `file(file_or_path)` | `RustFileFacts \| None` | One focused file lookup by `File` or `ProjectPath`. |
+
+`RustItemFact` uses `RustItemKind` and `RustVisibility`, preserves derives and
+implementation targets, and carries a stable `SourceLocation`. `RustUseFact`
+preserves authored parts, source and target modules, optional target file and crate,
+and a `RustUseResolution` of `RESOLVED`, `CRATE`, `EXTERNAL`, or `UNRESOLVED`.
+`RustFileFacts.parse_error` remains explicit when source cannot be parsed.
+
+Each broad or focused call records its answer for subject-aware cache replay. Use a
+focused `file()` or `crate()` lookup when unrelated source or Cargo changes should
+not invalidate a cached result.
+
+## `ctx.web`
+
+For TypeScript and Svelte targets, a versioned immutable fact view transferred from
+the native analyzers. It contains no parser-library nodes and does not require
+Node.
+
+| Call | Returns | Purpose |
+| --- | --- | --- |
+| `files` | `tuple[WebFileFacts, ...]` | All discovered direct, support, excluded, and generated web source facts. |
+| `file(file_or_path)` | `WebFileFacts \| None` | One focused file lookup by `File` or `ProjectPath`. |
+
+`WebFileFacts` exposes its analyzer, `WebSourceKind`, `WebSourcePurpose`, module,
+source root, scope, authored source, optional parse error, and immutable imports,
+functions, classes, models, bindings, calls, resources, re-exports, and export
+counts. `WebImportFact.target` is a `File` only when the native analyzer proves a
+project-local destination. Use `ctx.graph` for resolved dependency and dependent
+queries.
+
+`syntax_handles` contains stable Fensu-owned `WebSyntaxHandle` byte ranges for
+imports, declarations, calls, resources, re-exports, Svelte scripts, and runes.
+Pass one to `WebFileFacts.text(handle)` to retrieve its authored text without
+receiving an analyzer AST.
+
+On Svelte targets, `WebFileFacts.svelte` is a `SvelteFileFacts` extension when the
+file is a component or state module. It records script contexts, recognized
+top-level runes, component markup, route identity, and state-module identity.
+TypeScript-only targets do not require this extension.
+
+Broad `files` and focused `file()` calls record their exact answers for
+subject-aware cache replay. Tree and graph calls made during the same invocation
+record their own query-specific dependencies.
+
+## `ctx.targets`
+
+Repository rules use `ctx.targets` instead of an unqualified target context.
+`all()` returns every configured `RuleTargetFacts` handle in target-name order;
+`named(name)` returns one exact handle or `None`.
+
+Each handle exposes its stable `Target` identity, target-local `tree` and `graph`,
+and the typed `python`, `rust`, or `web` workspace facts owned by its analyzer.
+`repository_path(file_or_path)` and `repository_location(location)` translate
+target-local evidence before constructing a repository-relative diagnostic.
+Wrong-analyzer access and access to an analyzer omitted from the active rule's
+`analyzers` fail closed.
+
+Repository contexts have no current file, source, `ctx.project`, or unqualified
+analyzer zones. Their queries use a distinct repository requester for cache replay.
+See [Repository rules](/concepts/repository-rules) for the complete execution and
+cache model.
+
+## `ctx.text`, `ctx.syntax`, `ctx.relations`
+
+Source text, opaque syntax identities, and syntax relationships for the current
+file.
+
+| Call | Returns | Purpose |
+| --- | --- | --- |
+| `text.source` | `str` | The complete source text. |
+| `text.line(line_number)` | `str` | One source line without its ending. |
+| `text.slice(source_range)` | `str` | The text covered by an end-exclusive range. |
+| `syntax.handles(kind=None)` | `tuple[SyntaxHandle, ...]` | Syntax handles in traversal order, optionally filtered by kind. |
+| `syntax.kind(handle)` | `str` | The Fensu syntax kind for a handle. |
+| `syntax.range(handle)` | `SourceRange` | The source range for a handle. |
+| `relations.parent(handle)` | `SyntaxHandle \| None` | The direct parent handle. |
+| `relations.children(handle)` | `tuple[SyntaxHandle, ...]` | Direct child handles in source order. |
+| `relations.ancestors(handle)` | `tuple[SyntaxHandle, ...]` | Parents from nearest to farthest. |
+
+The zone protocols are `FactAnalysis`, `ProjectAnalysis`, `TextAnalysis`,
+`SyntaxAnalysis`, and `RelationAnalysis`, all exported from `fensu`.
+
+The table above describes the Python analysis zones. Serialized Rust rules use
+`ctx.rust`, `ctx.project.tree`, `ctx.source`, and stable locations. Serialized web
+rules use `ctx.web`, `ctx.graph`, `ctx.project.tree`, `ctx.source`, and
+`WebSyntaxHandle`. The generic `ctx.syntax` and `ctx.relations` zones are
+unavailable because parser implementation objects are not part of native-analyzer
+authoring contracts.
+
+## Fault construction
+
+Construct diagnostics through the context so the rule's code, and optionally its
+declared message and remediation, are wired automatically. Omitted `message` and
+`remediation` use the rule's envelope values.
+
+| Call | Purpose |
+| --- | --- |
+| `fault(node, message=None, remediation=None)` | A `Fault` with line and column taken from an `ast` node. |
+| `fault_at(location, message=None, remediation=None)` | A `Fault` from a `SyntaxHandle`, `SourceLocation`, or `SourceRange`. |
+| `fault_for(path, line, column, message=None, remediation=None)` | A `Fault` at an explicit location. |
+| `path_fault(path=None, message=None, remediation=None)` | A file-level `Fault` with no specific line. |
+
+During a project-rule invocation there is no current file, source, text, syntax, or
+file-fact object. `path_fault()` therefore requires an explicit project-relative
+path, and `fault_for()` requires an absolute path confined to the analyzed project.
+`fault_at()` accepts a `SourceLocation` or `SourceRange`; a bare `SyntaxHandle`
+cannot be resolved without a current file analysis.
+
+During a repository-rule invocation, `path_fault()` accepts a repository-relative
+path and may omit it to report against the repository subject `"."`.
+`fault_at()` accepts a repository-relative `SourceLocation`; translate a
+target-local location with `target.repository_location(...)` first.
+
+## Position and roles
+
+Location facts derived from configured roots and scopes, not hardcoded package
+names.
+
+| Call | Returns | Purpose |
+| --- | --- | --- |
+| `path` | `Path` | The file being checked. |
+| `repo_root` | `Path` | The resolved repository root. |
+| `source` | `str` | The raw source of the current file. |
+| `relative_parts()` | `tuple[str, ...]` | Path parts relative to the matched scope root. |
+| `repo_relative_parts()` | `tuple[str, ...]` | Path parts relative to the repository root. |
+| `module_parts()` | `tuple[str, ...]` | The file's importable module parts. |
+| `scope()` | `ScopeName` | The discovery scope of the current file. |
+| `scope_root()` | `Path` | The configured root that owns the current file. |
+| `scope_roots(scope)` | `tuple[Path, ...]` | Ordered configured roots for a scope. |
+| `role_of(path=None)` | `str \| None` | The role of a path, or the current file. |
+| `in_role(role)` | `bool` | Whether the current file is within a role. |
+| `is_entry_module()` | `bool` | Whether the file is a `main/` entry module. |
+| `is_main_module()` | `bool` | Whether the file is within a `main/` package. |
+| `domain()` | `str \| None` | The top-level domain, if any. |
+| `subdomain()` | `str \| None` | The subdomain, if any. |
+
+## AST helpers
+
+Convenience operations over the current file's parsed tree.
+
+| Call | Returns | Purpose |
+| --- | --- | --- |
+| `nodes(node_type)` | `list[ast.AST]` | Nodes of a type from the shared single-pass index. |
+| `call_name(node)` | `str \| None` | The called name of a call node. |
+| `base_name(node)` | `str \| None` | The base name of an expression. |
+| `top_level_functions(module)` | `tuple[ast.AST, ...]` | Top-level function definitions. |
+| `non_docstring_body(module)` | `list[ast.stmt]` | Module body without its leading docstring. |
+| `distinct_callees(fn)` | `frozenset[str]` | Distinct callee names within a function. |
+| `assigned_locals(fn)` | `frozenset[str]` | Names assigned as locals within a function. |
+| `parameter_names(fn)` | `frozenset[str]` | A function's parameter names. |
+| `inside_loop(node)` | `bool` | Whether a node is lexically inside a loop. |
+
+Prefer `ctx.nodes()` over `ast.walk(module)` for module-wide scans so cooperating
+rules share Fensu's single traversal.
+
+## Configuration
+
+| Call | Returns | Purpose |
+| --- | --- | --- |
+| `threshold(name, path=None)` | `int` | The value for a `Threshold` after global, per-role, and path overrides. |
+| `contracts()` | `Mapping[str, str]` | The configured function-name behavior contracts. |
+| `test_scopes()` | `tuple[str, ...]` | The configured test scope names, in declaration order. |
+| `option(declaration)` | declaration-specific type | The current value of an option declared by the active rule. |
+
+Pass the exact `RuleOption[T]` declaration from the active rule to preserve the
+static return type. Requests for undeclared or cross-rule options are authoring
+errors. Values are immutable and already validated before evaluation.
+
+## Public models
+
+All models below are exported from `fensu` and returned by the calls above. They
+are frozen dataclasses; inspect exact fields with your editor's type information.
+
+**Locations and handles**
+
+| Model | Describes |
+| --- | --- |
+| `SourcePosition` | A one-based line with zero-based byte column and offset. |
+| `SourceRange` | An end-exclusive range within one file. |
+| `SourceLocation` | A file and one-based line with zero-based diagnostic column. |
+| `SyntaxHandle` | A file-qualified opaque reference to one syntax node. |
+| `NodeId` | An opaque syntax identity unique within one file. |
+
+**Function and dataflow facts**
+
+| Model | Describes |
+| --- | --- |
+| `FunctionFacts` | Functions in compatibility and top-level source order. |
+| `FunctionMetricFact` | Reusable structural metrics for one function. |
+| `FunctionContractFact` | Descriptive return and generator facts for one function. |
+| `FunctionConditionalFact` | Conditional control flow owned by a function. |
+| `MeaningfulReturnFact` | The first meaningful return owned by a function. |
+| `ParameterMutationFact` | The first direct mutation of one parameter. |
+| `OuterStateMutationFact` | A mutation resolving to module or enclosing-function state. |
+
+**Annotation facts**
+
+| Model | Describes |
+| --- | --- |
+| `AnnotationFacts` | Missing annotation facts from one traversal. |
+| `MissingParameterAnnotationFact` | A parameter requiring an annotation. |
+| `MissingReturnAnnotationFact` | A function requiring a return annotation. |
+| `MissingLocalAnnotationFact` | A first local binding requiring an annotation. |
+| `MissingVariableAnnotationFact` | An unannotated module variable or class attribute. |
+
+**Declaration and reference facts**
+
+| Model | Describes |
+| --- | --- |
+| `ModuleDeclarationFacts` | Top-level statements and classified declarations. |
+| `ModuleStatementFact` | One top-level non-docstring statement. |
+| `TypeDeclarationFact` | One type-layer declaration and its visibility. |
+| `DataclassFact` | One dataclass declaration and its field and frozen metadata. |
+| `ReferenceFacts` | Imports and ordered reference events. |
+| `ImportFact` | One import statement and its imported names. |
+| `ImportAliasFact` | One imported name and its local binding. |
+| `AttributeReferenceFact` | One attribute reference and its leftmost base. |
+| `CommentFact` | One source comment and its display position. |
+| `NamedCallFact` | One call with a statically knowable bare name. |
+| `HygieneFacts` | Locations for syntax-based hygiene policies. |
+
+**Project and dependency facts**
+
+| Model | Describes |
+| --- | --- |
+| `ProjectFunctionFact` | A top-level function and whether its annotation promises a result. |
+| `ProjectCallFacts` | Resolvable discarded calls for one module. |
+| `DiscardedProjectCallFact` | One discarded call resolvable within the project. |
+| `ProjectDependency` | One requester-to-path dependency observed by a query. |
+| `StaticReferenceFact` | One expression resolved to an absolute imported symbol. |
+
+**Subjects, project tree, and architecture graph**
+
+| Model | Describes |
+| --- | --- |
+| `File` | Immutable identity of one discovered source file. |
+| `Project` | Immutable identity of one analyzed project. |
+| `Repository` | Immutable identity of one configured multi-target repository. |
+| `Target` | Stable name, analyzer, and repository-relative root for one target. |
+| `RuleTargetFacts` | One named target's identity, tree, graph, typed facts, and path translators. |
+| `RepositoryTargetFacts` | Deterministic `all()` and `named()` target lookup. |
+| `ProjectPath` | Normalized, confined, project-relative POSIX path. |
+| `ProjectTree` | Deterministic discovered paths, files, and positions. |
+| `FilePosition` | Complete analyzer-neutral layout position for one file. |
+| `ArchitectureGraph` | Resolved static project-import graph. |
+| `ModuleNode` | Discovered module identity and ownership. |
+| `AuthoredImport` | Import spelling before project resolution. |
+| `ImportEdge` | Authored import plus explicit resolution result. |
+| `ImportCycle` | One statically proven strongly connected component. |
+
+**Rust facts**
+
+| Model | Describes |
+| --- | --- |
+| `RustWorkspaceFacts` | Versioned workspace crates and selected Rust files. |
+| `RustCrateFact` | Cargo package identity, manifest, library, targets and dependencies. |
+| `RustTargetFact` | Stable Cargo target identity, kinds, source root and entry path. |
+| `RustDependencyFact` | Cargo package/source name, dependency kinds and optional local crate. |
+| `RustFileFacts` | Source, module identity, parse result, items and authored uses. |
+| `RustItemFact` | Function, struct, enum, trait, implementation or module declaration. |
+| `RustUseFact` | Authored `use` path and explicit resolution evidence. |
+
+**Python repository facts**
+
+| Model | Describes |
+| --- | --- |
+| `PythonWorkspaceFacts` | Versioned broad and focused Python file queries for one named target. |
+| `PythonFileFacts` | One Python file's identity, source, and Fensu-owned fact, text, syntax, and relation zones. |
+
+**Web facts**
+
+| Model | Describes |
+| --- | --- |
+| `WebWorkspaceFacts` | Versioned TypeScript or Svelte target facts. |
+| `WebFileFacts` | One discovered web source, its semantic facts, source, and parse result. |
+| `WebImportFact` | Authored import bindings, flags, location, and optional resolved target. |
+| `WebFunctionFact` | Function ownership, annotations, return type, and structural metrics. |
+| `WebClassFact` | Class identity, export status, and error-class classification. |
+| `WebModelFact` | Interface or type-literal model shape and readonly evidence. |
+| `WebBindingFact` | Top-level binding and optional initializer call. |
+| `WebCallFact` | Named call, lexical function owner, ancestors, and cleanup evidence. |
+| `WebResourceFact` | Statically recognized resource family, binding, and call ancestry. |
+| `WebSyntaxHandle` | Fensu-owned kind, name, location, and stable source byte range. |
+| `SvelteFileFacts` | Component, route, state-module, script, and rune extensions. |
+| `SvelteScriptFact` | One module or instance script block. |
+| `SvelteRuneFact` | One recognized module-owned rune and source location. |
+
+**Test facts**
+
+| Model | Describes |
+| --- | --- |
+| `PytestFunctionFact` | Syntax metadata for one test function. |
+| `PytestModuleFacts` | Module-shape metadata for test policy. |
+| `ParametrizeFact` | Structured parametrization decorator metadata. |
+| `ParametrizeCaseFact` | One visible parametrization case expression. |
+| `ParametrizeDimensionFact` | One parametrization dimension and its provable `RuleCase` values. |
+| `EvaluateRuleCallFact` | One statically recognized `evaluate_rule` call. |
+| `RuleTestAssociationFact` | Static harness coverage for one test function and rule. |
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Custom rules" icon="code" href="/concepts/custom-rules">
+    Authoring, loading, testing, and cacheability.
+  </Card>
+  <Card title="Configuration" icon="gear" href="/concepts/configuration">
+    Thresholds and contracts the context resolves.
+  </Card>
+</CardGroup>

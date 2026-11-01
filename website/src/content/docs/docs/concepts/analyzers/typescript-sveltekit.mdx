@@ -1,0 +1,198 @@
+---
+title: TypeScript and SvelteKit
+description: "Configure native web analysis during repository-wide onboarding or explicitly requested TypeScript, Svelte, and SvelteKit architecture work."
+---
+
+Fensu can analyze TypeScript and SvelteKit targets natively, without starting
+Node. Web analysis uses named targets, so a repository can check Python and web
+projects in one deterministic `fensu check` run.
+
+<Note>
+  Web analyzers are newer and less broadly exercised than Fensu's Python
+  analyzer. Include a confidently detected SvelteKit project during
+  repository-wide Fensu onboarding, but do not expand an unrelated scoped task
+  into frontend policy work. Existing configured targets always apply.
+</Note>
+
+## Repository-wide onboarding
+
+Run the normal initializer when the user asks to set up Fensu for the repository:
+
+```bash
+fensu init --yes
+```
+
+Fensu recognizes a SvelteKit target only when one directory contains all of the
+following:
+
+- `svelte.config.js`, `.cjs`, `.mjs`, or `.ts`;
+- `package.json` with a non-empty `@sveltejs/kit` dependency or dev dependency;
+- `tsconfig.json` or `jsconfig.json`; and
+- a `src/` directory.
+
+If Python packages are present too, init writes explicit Python and Svelte targets.
+Use `--exclude-target NAME` only when repository-wide onboarding deliberately
+excludes one detected web project. Generic TypeScript files alone do not imply a
+particular architecture policy and are not auto-detected as a target.
+
+For a new SvelteKit-only setup, an explicit preset is also available:
+
+```bash
+fensu init --yes --preset sveltekit
+```
+
+## Add a target
+
+To add SvelteKit to an existing explicit-target `fensu.toml`:
+
+```bash
+fensu target add web --preset sveltekit --path frontend
+```
+
+This appends a validated `[targets.web]` block without converting or overwriting
+an ambiguous configuration. See [`fensu target`](/cli/target) for its safety
+contract.
+
+## Configuration
+
+A mixed repository can declare both analyzers:
+
+```toml
+[targets.backend]
+analyzer = "python"
+root = "."
+roots = ["src/acme"]
+tests = ["tests"]
+tooling = ["scripts"]
+select = ["FF"]
+
+[targets.web]
+analyzer = "svelte"
+root = "frontend"
+roots = ["src"]
+tests = ["tests"]
+tooling = ["tooling"]
+test_layout = "mirrored"
+rule_packs = ["sveltekit"]
+select = ["FPSK"]
+```
+
+`root` is relative to the repository configuration and the target's `roots`,
+`tests`, and `tooling` are relative to that root. For a generic TypeScript
+project, use `analyzer = "typescript"`, `rule_packs = ["typescript"]`, and the
+`FPTS` selector. For SvelteKit, the Svelte analyzer parses sources while the
+`sveltekit` pack is the single switch that activates SvelteKit policy.
+
+Domain ownership begins at each product root's `lib/` directory by default. Set
+[`ownership_roots`](/concepts/configuration#ownership-roots) when domains begin in
+several nested regions, such as `src/lib/sources/*` and `src/lib/runtime`.
+
+With several targets, `fensu check` evaluates all of them and renders one report.
+Use `fensu check --target web` to select one. Positional paths also require one
+selected target.
+
+## What it checks
+
+The `FPTS` pack covers framework-independent TypeScript imports, ownership and
+module shape, annotations, naming, hygiene, and test conventions. The `FPSK`
+pack is standalone: it aliases all applicable `FPTS` rules and adds component,
+state, route, resource, UI-kit, generated-client, and API-boundary policy.
+
+Inspect any reported contract in the selected web target:
+
+```bash
+fensu rule FPSKA001 --target web
+```
+
+Fensu reads TypeScript/JavaScript config inheritance and static path aliases. It
+also reads literal SvelteKit `kit.alias` values. When a required alias is dynamic,
+Fensu fails with a configuration diagnostic rather than guessing. A missing
+generated `.svelte-kit/tsconfig.json` is accepted on a fresh checkout.
+
+## Custom web rules
+
+Python-authored custom rules can extend a TypeScript or Svelte target without
+changing its CLI, configuration, selectors, or policy model. Declare analyzer
+applicability on the normal `@rule` decorator:
+
+```python
+from fensu import AnalyzerId, Family, Fault, File, RuleContext, rule
+
+
+@rule(
+    code="XWEB001",
+    family=Family.CUSTOM,
+    slug="resolved-import-boundary",
+    message="Import crosses the configured boundary",
+    analyzers=(AnalyzerId.TYPESCRIPT,),
+    cacheable=True,
+)
+def resolved_import_boundary(*, file: File, ctx: RuleContext) -> list[Fault]:
+    facts = ctx.web.file(file)
+    if facts is None:
+        return []
+    return [
+        ctx.fault_at(location=edge.location)
+        for edge in ctx.graph.imports(file)
+        if edge.target is not None and edge.target.role == "_state"
+    ]
+```
+
+Configure it like any other custom rule:
+
+```toml
+[targets.web]
+analyzer = "typescript"
+roots = ["src"]
+tests = ["tests"]
+tooling = []
+rule_paths = ["rules/web.py"]
+select = ["FPTS", "XWEB001"]
+```
+
+`ctx.web` exposes immutable Fensu-owned facts for TypeScript, JavaScript, and
+Svelte sources. These include source kinds, resolved import targets, functions,
+classes, models, bindings, calls, resources, exports, source locations, and stable
+text handles. `ctx.graph` exposes the same resolved imports through the common
+architecture graph, including `tsconfig.json`, `jsconfig.json`, `$lib`, and
+literal SvelteKit alias resolution.
+
+Svelte files add `SvelteFileFacts` for component markup, route identity, script
+contexts, and runes. Svelte state modules such as `session.svelte.ts` are marked
+separately and expose only recognized top-level initializer runes; nested calls
+are not promoted to module-owned state.
+
+File rules run once per selected source. A typed `Project` callback runs once for
+the target and can query `ctx.web.files` and `ctx.project.tree`. Use focused
+`ctx.web.file(...)`, tree, or graph queries when unrelated edits should preserve a
+cached result. Every query records its actual answer for cache replay.
+
+Web parsing and built-in rules always remain native and Node-free. Fensu starts a
+bounded Python host only when configured custom sources and an active `X` selector
+require hosted resolution. Native-only, unselected, and custom selections whose
+selector prefixes are wholly covered by ignore prefixes remain Python-free. Actual
+rule applicability is resolved inside the host. Custom diagnostics then pass
+through the normal warnings, ignores, exceptions, rendering, and exit-code
+handling. `fensu map` remains a Python analyzer feature.
+
+## Gradual adoption
+
+Use the same target-local controls as other analyzers. To measure the full web
+policy without blocking CI:
+
+```toml
+[targets.web]
+analyzer = "svelte"
+root = "frontend"
+roots = ["src"]
+tests = ["tests"]
+rule_packs = ["sveltekit"]
+select = []
+warn = ["FPSK"]
+
+[targets.web.evaluation]
+include = ["src/**/*.{ts,js,svelte}", "tests/**/*.{ts,svelte}"]
+```
+
+Run `fensu check --warn`, then move proven rules or paths into blocking policy as
+the repository adopts them.

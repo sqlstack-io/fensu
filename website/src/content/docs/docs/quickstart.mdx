@@ -1,0 +1,126 @@
+---
+title: Quickstart
+description: "Install Fensu, initialize a repository, and read your first faults in a few minutes."
+---
+
+This guide gets Fensu running against a Python repository and walks through
+reading its output.
+
+<Tip>
+  **Fastest wins.** On a **brand-new** repo, run [`fensu init`](/cli/init) with
+  `--yes --name NAME` and keep
+  everything on from the first commit. On a **small existing** repo, run
+  `fensu init --yes` in your `pyproject.toml` directory, then drive the faults to zero
+  (a coding agent can handle these easily). That single pass is where Fensu pays off
+  most. Larger codebases need more judgment; see [Adopting Fensu](/adoption).
+</Tip>
+
+## 1. Install
+
+```bash
+pip install fensu
+fensu --version
+```
+
+Fensu needs Python 3.12 or newer.
+
+## 2. Initialize
+
+[`fensu init`](/cli/init) is the fastest way to start. It detects your layout,
+writes a `fensu.toml` with the full ruleset enabled, runs a first check to show
+current drift, and installs [agent skill files](/cli/skills):
+
+```bash
+fensu init --yes
+```
+
+The native initializer is non-interactive. For an empty repository with no code,
+run `fensu init --yes --name my_package`; init scaffolds a `src/` package and
+`tests/` directory. Pass `--no-skills` only when automation explicitly needs
+configuration without repository-local agent guidance.
+
+Verify that every generated local skill is present and current before calling
+onboarding complete:
+
+```bash
+fensu skills --check
+```
+
+Prefer to write configuration by hand? A minimal `fensu.toml` only needs your
+product roots:
+
+```toml
+roots = ["src/my_package"]
+```
+
+`tests` defaults to `["tests"]`, `tooling` is optional, and every rule family is on
+by default. See [Configuration](/concepts/configuration) for scopes, selection, and
+the full schema.
+
+## 3. Check and read a fault
+
+Run Fensu against the configured repository:
+
+```bash
+fensu check
+```
+
+If everything conforms, Fensu prints a summary and exits `0`:
+
+```text
+Found 0 faults
+```
+
+When it finds a problem, it prints a diagnostic for each fault and exits `1`. The
+output points at the exact line, shows the source, and explains the fix:
+
+```text
+FFL102  import 'my_package.payments.processing._helpers.charge_card' reaches into internal structure of 'my_package.payments'
+ --> src/my_package/orders/checkout/main/place_order.py:1:0
+  |
+1 | from my_package.payments.processing._helpers.charge_card import charge_card
+  | ^
+  |
+  = help: Import from classes, models, types, constants, exceptions, or a thin main/ entry.
+```
+
+Every diagnostic has two parts: the `message` states the contract that was
+violated, and the `= help:` line states the normal correction. The messages are
+written to be read at the moment of violation, by a person or an agent, so the fix
+is clear without opening the docs. Look up any code in full with
+[`fensu rule <CODE>`](/cli/rule).
+
+## 4. Optional: look for duplicated code
+
+`fensu check` cannot see that two valid functions are the same logic. Run the
+advisory duplicated-code report to find copies that may have drifted apart:
+
+```bash
+fensu dupes
+```
+
+It exits `0` whatever it finds, so there is nothing to fix before you move on.
+See [Duplicated code](/concepts/duplicated-code) for how to read the clusters.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Architecture model" icon="sitemap" href="/concepts/architecture-model">
+    The scopes, roles, and default layout Fensu enforces.
+  </Card>
+  <Card title="Configuration" icon="gear" href="/concepts/configuration">
+    Every configuration key, threshold, and contract.
+  </Card>
+  <Card title="Rule families" icon="list-check" href="/concepts/rule-families">
+    What each family (FFL, FFR, FFS, FFN, FFH, FFT, FFA) checks.
+  </Card>
+  <Card title="Adopting Fensu" icon="seedling" href="/adoption">
+    Rolling out on a new, small, or large repository.
+  </Card>
+  <Card title="fensu map" icon="diagram-project" href="/cli/map">
+    Render a deterministic downstream or upstream call tree for any function.
+  </Card>
+  <Card title="fensu skills" icon="robot" href="/cli/skills">
+    Generate and verify agent guidance from your active rules.
+  </Card>
+</CardGroup>

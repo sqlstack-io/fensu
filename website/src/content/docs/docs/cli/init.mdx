@@ -1,0 +1,209 @@
+---
+title: fensu init
+description: "Approved setup: detect your repository layout, write a starting configuration, measure current drift, and install agent skill files."
+---
+
+`fensu init` sets up Fensu in a repository. It detects your layout, writes a
+`fensu.toml` with the complete default ruleset, runs an initial check to show the
+current drift, and installs [agent skill files](/cli/skills). The native initializer
+is non-interactive, so new initialization requires `--yes`.
+
+```bash
+fensu init [--yes] [--root PATH ...] [--tests PATH ...] [--tooling PATH ...]
+            [--skills | --no-skills] [--name NAME] [--preset sveltekit]
+            [--exclude-target NAME ...]
+```
+
+## What it does
+
+1. **Detects your layout and analyzers.** Python package roots come from `pyproject.toml` metadata
+   (hatch, setuptools, poetry, flit, uv workspaces, the project name), ruff's
+   `src` setting, and a directory scan. Test paths come from pytest `testpaths`
+   and `tests`/`test` directories; tooling from `scripts`, `tools`, `bin`, and
+   `tasks` directories with Python files. If package metadata also names one of
+   those conventional tooling directories, tooling classification wins so a path
+   is never proposed in both scopes; an explicit `--root` overrides detection.
+   Fensu also detects complete SvelteKit projects and can write both analyzers as
+   named targets.
+2. **Enables each complete policy.** Python targets select `FF`; detected
+   SvelteKit targets activate the `sveltekit` rule pack and select `FPSK`. An
+   empty repository normally gets a scaffolded Python `src/<name>/` package plus
+   `tests/`.
+3. **Writes `fensu.toml`** and updates your `.gitignore` to cover Fensu's
+   [cache directory](/cli/check#caching).
+4. **Measures current drift** by running the starting ruleset once and printing
+   the total fault and affected-file counts.
+5. **Installs project-specific agent skill files** (`.claude/`, `.opencode/`,
+   `.agents/`) at the Git root by default under `--yes`; see
+   [`fensu skills`](/cli/skills).
+
+## Options
+
+| Option | Description |
+| --- | --- |
+| `--yes` | Approve detected initialization and, unless opted out, local skill installation. |
+| `--root PATH` | Use these package roots instead of the detected ones. Repeatable. |
+| `--tests PATH` | Use these test paths. Repeatable. |
+| `--tooling PATH` | Use these tooling paths. Repeatable. |
+| `--skills` / `--no-skills` | Explicitly install or skip agent skill files. `--yes` installs them when neither is supplied. |
+| `--name NAME` | Package name for an empty-repository scaffold. Only valid when no Python package is detected. |
+| `--preset sveltekit` | Initialize an explicit SvelteKit target instead of a Python scaffold. |
+| `--exclude-target NAME` | Exclude one or more detected SvelteKit targets from the initialization plan. |
+
+`--skills` and `--no-skills` are mutually exclusive. `--root`, `--tests`, and
+`--tooling` only apply when a codebase is detected; `--name` only applies when
+none is.
+
+## SvelteKit detection
+
+Repository-wide onboarding includes each confidently detected SvelteKit project.
+Detection requires a `svelte.config.*` file, `package.json` with `@sveltejs/kit`,
+`tsconfig.json` or `jsconfig.json`, and `src/` in the same target directory. A
+mixed repository receives explicit Python and Svelte targets. Generic TypeScript
+files alone do not trigger automatic web policy.
+
+Use `--exclude-target NAME` when the onboarding request deliberately excludes a
+detected web project. See
+[TypeScript and SvelteKit](/concepts/analyzers/typescript-sveltekit) for manual
+configuration and gradual adoption.
+
+## An existing repository
+
+On a repository with code, use the detected paths or supply explicit scope paths:
+
+```bash
+fensu init --yes
+```
+
+The command writes configuration, measures drift, and installs all three local
+skill targets without launching a second process:
+
+```text
+-> Existing codebase - 1,204 Python files
+
+    Enabling the full Fensu ruleset: FF
+    Wrote fensu.toml
+
+-> Measuring current drift
+
+    Found 4,448 faults across 352 files against the starting ruleset.
+
+Updated Fensu skill files:
+    Updated .opencode/skills/fensu-acme/SKILL.md
+    Updated .claude/skills/fensu-acme/SKILL.md
+    Updated .agents/skills/fensu-acme/SKILL.md
+
+-> Next
+
+    fensu check            run anytime
+    fensu rule FFA001      inspect any code in the output
+```
+
+Use repeatable `--root`, `--tests`, and `--tooling` arguments when detection is not
+the intended layout.
+
+No rule family is silently held back. For an existing repository, keep the target
+visible and roll it out with evaluation targeting or explicit rule exceptions; see
+[Adopting Fensu](/adoption).
+
+## An empty repository
+
+With no Python code detected, `fensu init` scaffolds a fresh layout instead. The
+required explicit name is normalized into a Python package name:
+
+```bash
+fensu init --yes --name Sample-App
+```
+
+The resulting project starts fully enforced from the first commit:
+
+```text
+-> Empty repository
+
+    Created src/sample_app/__init__.py
+    Created tests/
+    Wrote fensu.toml
+
+-> Found 0 faults
+
+Updated Fensu skill files:
+    Updated .opencode/skills/fensu-sample-app/SKILL.md
+    Updated .claude/skills/fensu-sample-app/SKILL.md
+    Updated .agents/skills/fensu-sample-app/SKILL.md
+
+-> Next
+
+    fensu check            run anytime
+    fensu rule FFA001      inspect any code in the output
+```
+
+## Gitignore handling
+
+Fensu's generated result cache lives under `.fensu/cache/`, which should not be
+committed. The rest of the `.fensu/` namespace is not ignored automatically.
+
+- If a root `.gitignore` exists and does not already cover the cache path,
+  `fensu init` appends a `.fensu/cache/` entry to it.
+- An empty repository with no `.gitignore` gets one created from the standard
+  GitHub Python template, plus the `.fensu/cache/` entry.
+- An existing repository with no `.gitignore` gets one containing just the
+  `.fensu/cache/` entry.
+
+## Rerunning is safe
+
+If the directory already has a `fensu.toml` or a `[tool.fensu]` table,
+`fensu init` changes nothing and exits `0`:
+
+```text
+Fensu configuration already exists: /path/to/repo/fensu.toml (nothing to do)
+```
+
+If a **parent** directory's configuration would apply here instead, init refuses
+with an error rather than shadowing it. Configuration and scaffold writes are
+transactional. Drift measurement and skill installation happen afterward. If skill
+installation fails, the initialized project is kept and the error is reported so
+you can rerun `fensu skills`.
+
+## Approval and automation
+
+Initialization does not implement an interactive wizard. Pass `--yes`; otherwise
+the command fails without writing:
+
+```text
+Interactive initialization is not supported; rerun with --yes.
+```
+
+```bash
+# Existing repository
+fensu init --yes
+
+# Empty repository
+fensu init --yes --name my_package
+```
+
+Add `--no-skills` only for explicit configuration-only automation. After normal
+initialization, require `fensu skills --check` to pass before onboarding is complete.
+
+## Exit codes
+
+| Code | Meaning |
+| --- | --- |
+| `0` | Configuration written, or a local configuration already exists. |
+| `2` | Usage, detection, validation, write, or skill-installation failure. |
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    The manual version of what init automates.
+  </Card>
+  <Card title="Adopting Fensu" icon="seedling" href="/adoption">
+    Rolling out full enforcement with explicit boundaries and exceptions.
+  </Card>
+  <Card title="Configuration" icon="gear" href="/concepts/configuration">
+    Every key in the file init writes.
+  </Card>
+  <Card title="fensu skills" icon="robot" href="/cli/skills">
+    The agent guidance init installs by default under `--yes`.
+  </Card>
+</CardGroup>

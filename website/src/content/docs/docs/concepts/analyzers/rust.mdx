@@ -1,0 +1,226 @@
+---
+title: Rust
+description: "Configure native Cargo workspace analysis through fensu.toml and the normal Fensu CLI."
+---
+
+Fensu analyzes Rust projects natively. Cargo discovery, Rust parsing, workspace facts,
+and all Rust rules are owned by the `fensu-rust` analyzer and run through the normal
+`fensu` command. There is no separate Rust command or policy file.
+
+## Configure a workspace
+
+Add a named target to `fensu.toml`:
+
+```toml
+[targets.rust]
+analyzer = "rust"
+roots = ["crates"]
+tests = []
+tooling = []
+rule_packs = ["rust"]
+select = ["FPRS"]
+```
+
+`rule_packs = ["rust"]` and `select = ["FPRS"]` are the Rust defaults. Keeping
+them explicit makes the active policy clear in a multi-target repository.
+
+Then run:
+
+```bash
+fensu check --target rust
+```
+
+For a single Cargo package, use `roots = ["src"]`. If the Cargo project is below
+the repository root, set `root` to that directory. Target paths are relative to
+`root`.
+
+Cargo discovers workspace members, package names, library and binary targets, and
+integration-test targets automatically. You do not need to list crates unless you
+deliberately want a closed inventory. Rust targets reject positional paths because
+Cargo owns target discovery.
+
+By default, Cargo-inferred crate source roots are also the ownership roots from
+which Fensu classifies domains. Set
+[`ownership_roots`](/concepts/configuration#ownership-roots) only when a crate's
+domains begin below additional structural grouping directories.
+
+## What it checks
+
+The `rust` pack exposes all 117 implemented rules under `FPRS`. The rules cover:
+
+- Cargo workspace and dependency policy;
+- module ownership, visibility, layout, and import boundaries;
+- file, function, naming, and error-handling hygiene;
+- function shape and coordination budgets; and
+- unit and integration-test structure and conventions.
+
+Use the normal selectors and policy tiers:
+
+```toml
+select = ["FPRS"]
+warn = []
+ignore = ["FPRSH001"]
+```
+
+Exact file exceptions and path-scoped ignores work as they do for other analyzers.
+Rust exceptions name a Rust source file or `Cargo.toml`; they do not use Python
+definition selectors. Inspect any rule and its effective settings with:
+
+```bash
+fensu rule FPRSS010 --target rust
+```
+
+## Custom Rust rules
+
+Custom Rust rules are authored in Python but run over immutable, serialized facts
+owned by Fensu. Declare Rust applicability explicitly and use a typed `File` or
+`Project` subject; raw `syn` and Cargo metadata objects are never exposed.
+
+```python
+from fensu import (
+    AnalyzerId,
+    Family,
+    Fault,
+    File,
+    RuleContext,
+    RustItemKind,
+    rule,
+)
+
+
+@rule(
+    code="XRS001",
+    family=Family.CUSTOM,
+    slug="legacy-service",
+    message="legacy service declaration",
+    analyzers=(AnalyzerId.RUST,),
+    cacheable=True,
+)
+def legacy_service(*, file: File, ctx: RuleContext) -> list[Fault]:
+    facts = ctx.rust.file(file)
+    if facts is None:
+        return []
+    return [
+        ctx.fault_at(location=item.location)
+        for item in facts.items
+        if item.kind is RustItemKind.STRUCT and item.name == "LegacyService"
+    ]
+```
+
+Configure it through the standard custom-rule and selector keys:
+
+```toml
+[targets.rust]
+analyzer = "rust"
+roots = ["src"]
+tests = []
+tooling = []
+rule_packs = ["rust"]
+rule_modules = ["rules.rust"]
+select = ["FPRS", "XRS001"]
+```
+
+`ctx.rust` includes Cargo workspace crates, targets and dependencies; selected Rust
+files and module identities; declarations for functions, structs, enums, traits,
+implementations, visibility and derives; parse failures; and statically provable
+`use` targets. Resolution remains explicit when a target is external, crate-local
+but not attributable to one file, or unresolved.
+
+Project rules use `Project` and run once for the Rust target. They can combine
+`ctx.project.tree` with `ctx.rust.crates` for workspace-wide dependency or layout
+policy. Typed `rule_options`, warning tiers, selector ignores, path ignores and exact
+exceptions use the same configuration as built-in rules.
+
+Fensu starts the Python host only when configured custom-rule sources have an active
+`X` selector that is not wholly covered by an ignore prefix. A Rust target with only
+native selectors remains native and Python-free. Cacheable custom rules retain
+separate file or project subjects and replay the tree or Rust-fact queries actually
+observed by each invocation. Fact schema, parser contract, runtime, rule package and
+typed options all participate in cache identity.
+
+## Rule options
+
+Adjust a rule under the target's standard `rule_options` table:
+
+```toml
+[targets.rust.rule_options.FPRSS010]
+max_arguments = 8
+
+[targets.rust.rule_options.FPRSR601]
+max_file_lines = 1500
+```
+
+The adjustable structural budgets retain these defaults:
+
+| Rule | Option | Default |
+| --- | --- | --- |
+| `FPRSR601` | `max_file_lines` | `2000` |
+| `FPRSS010` | `max_arguments` | `10` |
+| `FPRSS011` | `max_statements` | `70` |
+| `FPRSS001` | `max_statements` | `40` |
+| `FPRSS002` | `max_distinct_calls` | `20` |
+| `FPRSS003` | `max_locals` | `20` |
+| `FPRSR301` | `max_modules` | `10` |
+| `FPRSR302` | `max_modules` | `20` |
+
+Budgets must be positive integers. Unknown rule codes, option names, and invalid
+value types are rejected instead of being silently ignored.
+
+## Tooling and repository boundaries
+
+Use the target's normal `tooling` paths to identify tooling crates:
+
+```toml
+[targets.rust]
+analyzer = "rust"
+roots = ["crates"]
+tooling = ["crates/project-tools"]
+rule_packs = ["rust"]
+select = ["FPRS"]
+
+[targets.rust.rule_options.FPRSL301]
+forbidden_packages = ["project-tools"]
+```
+
+Tooling paths receive the tooling-layout rules. `forbidden_packages` prevents runtime
+crates outside those paths from depending on the named tooling packages and defaults
+to an empty list.
+
+Parser boundaries are also explicit and repository-neutral by default:
+
+```toml
+[targets.rust.rule_options.FPRSL102]
+packages = ["syntax-parser"]
+restricted_paths = ["rules"]
+remediation = "consume shared fact models instead of parser types"
+```
+
+`packages` defaults to an empty list and `restricted_paths` defaults to `["rules"]`.
+Dependency aliases are resolved when matching package identities.
+
+Closed inventories are optional:
+
+```toml
+[targets.rust.rule_options.FPRSL304]
+crate_names = ["app", "project-tools"]
+
+[targets.rust.rule_options.FPRSL305]
+domain_paths = ["crates/app/src/orders"]
+role_paths = ["crates/app/src/orders/main"]
+intentional_layout_paths = ["crates/app/src/generated"]
+```
+
+Empty crate, domain, and role lists use automatic discovery. Configured paths must
+be canonical repository-relative POSIX paths within the target root. Intentional-layout paths skip aggregate
+layout checks for explicit subtrees while preserving per-file checks.
+
+## Cargo metadata and caching
+
+Rust sources, Cargo manifests, an existing lockfile, and target configuration are
+cache inputs. Selected custom-rule packages are cache inputs as well. Fensu uses
+locked dependency resolution when `Cargo.lock` exists.
+For a lock-free workspace, it reads declared dependencies without creating a
+lockfile.
+
+If Cargo metadata cannot be read, Fensu reports a setup diagnostic and does not cache
+the result. The result remains uncached even when rule selection hides that diagnostic.

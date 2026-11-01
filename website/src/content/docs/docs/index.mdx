@@ -1,0 +1,169 @@
+---
+title: "Fensu (フェンス)"
+description: "Executable architecture rules for Python, Rust, TypeScript, and Svelte repositories."
+---
+
+<p className="text-right text-sm italic text-gray-500 dark:text-gray-400">
+  Fensu means "fence" in Japanese.
+</p>
+
+**Most linters catch bad code inside files. Fensu catches architectural drift:
+code crossing the wrong boundary, living in the wrong module, or growing into the
+wrong shape.**
+
+A repo small enough to fit in one file does not need Fensu. The trouble starts as
+it grows: code moves, teams change, lessons get forgotten, and the mental map
+decays.
+
+Tests help preserve behavior, but nothing preserves the *shape* of the repo: what
+belongs where, which layer owns what, which modules are public surfaces. That
+consistency usually lives in code review and in people's heads.
+
+Fensu makes it executable:
+
+- Tests codify behavioral expectations.
+- Types codify interface expectations.
+- **Fensu codifies architectural expectations.**
+
+A prompt or design doc can describe the intended structure. Only an executable rule
+can tell you, deterministically and every time, when the repo has drifted from it.
+
+## What Fensu checks
+
+Fensu is an architecture linter for Python, Rust, TypeScript, and Svelte projects. It analyzes your source and
+reports **faults**, the places where the code has broken away from the architecture
+you declared.
+
+<CardGroup cols={2}>
+  <Card title="Layers and boundaries" icon="layer-group">
+    Which modules and packages may import which. Absolute imports only, no star
+    imports, no reaching into a sibling's internals, no importing from tooling at
+    runtime.
+  </Card>
+  <Card title="Module roles" icon="folder-tree">
+    What each kind of file may contain and where it may live. `models.py` holds
+    models, `types.py` holds types, `main/` holds orchestrators, `_helpers/` holds
+    phases, `classes/` holds one class each.
+  </Card>
+  <Card title="Function shape" icon="ruler-combined">
+    Size caps on orchestrators, explicit dataflow, keyword-only arguments,
+    mutate-only-if-returned, and no hidden control flow buried in comprehensions.
+  </Card>
+  <Card title="Naming contracts" icon="signature">
+    Names that must mean what they claim. Validators raise or pass, predicates
+    return booleans, queries and conversions return values, and iterator names
+    produce iterators.
+  </Card>
+</CardGroup>
+
+It also enforces test-suite conventions (mirrored layout, given-when-then naming,
+dataclass-backed parametrization) and annotation conventions (annotate every
+parameter and return, plus non-scalar local bindings) in the scopes where those
+apply. See [Rule families](/concepts/rule-families) for the full set.
+
+Python uses Fensu's core `FF` policy. Rust, TypeScript, SvelteKit, and framework-specific
+Python projects use native rule packs selected per analyzer target. See
+[Rust](/concepts/analyzers/rust),
+[TypeScript and SvelteKit](/concepts/analyzers/typescript-sveltekit), and
+[Native rule packs](/concepts/rule-packs).
+
+Fensu ships a **coherent default architecture**, not a blank canvas. You
+adopt it and get a sensible starting point, then disable rules, tune thresholds,
+activate a framework-specific native policy, or add your own rules deliberately
+once you know what you are doing.
+
+The Python default lays out code as domains built from a small set of roles.
+A domain holds those roles directly, or splits into named subdomains that do:
+
+```text
+src/my_package/
+└── config/                  # a domain
+    ├── main/                # orchestrators and the public entry surface
+    ├── _helpers/            # phase functions
+    ├── classes/             # one class per module
+    ├── models.py            # data models
+    ├── types.py             # type declarations
+    ├── constants.py
+    └── exceptions.py
+```
+
+That is the shipped default. See the [architecture model](/concepts/architecture-model)
+for the full layout. To adapt the defaults or encode conventions of your own, see
+[configuration](/concepts/configuration) and [custom rules](/concepts/custom-rules).
+
+## Enforce it, then see it
+
+Fensu not only enforces repository structure, but also helps you navigate project
+call flow.
+
+- [`fensu check`](/cli/check) stops the repo from losing its shape.
+- [`fensu map`](/cli/map) helps you see that shape again, as a deterministic
+  downstream or upstream call tree with clickable `path:line` locations.
+
+<Frame caption="fensu map run_map">
+  <img className="block dark:hidden" src="/fensu_map_example_light_white.png" alt="A fensu map call tree for run_map, showing resolved project calls with path and line locations, an unresolved parameter call, depth-limit markers, and a cycle marker." />
+  <img className="hidden dark:block" src="/fensu_map_example.png" alt="A fensu map call tree for run_map, showing resolved project calls with path and line locations, an unresolved parameter call, depth-limit markers, and a cycle marker." />
+</Frame>
+
+`fensu map` works on any Python repository and does not require Fensu configuration.
+It resolves calls it can prove and marks dynamic seams as unresolved rather than
+guessing.
+
+## Beyond faults: duplicated code
+
+Some drift breaks no rule. When several modules each grow their own copy of one
+behaviour, every copy can sit in a valid place with a valid shape, and the copies
+still drift apart as fixes land in only one of them.
+[`fensu dupes`](/cli/dupes) reports those copies as ranked clusters, with the
+lines where they disagree. It is advisory: it never fails a build, and its
+findings never need to reach zero.
+
+<Card title="Duplicated code" icon="clone" href="/concepts/duplicated-code">
+  Why a copy is architectural drift, and how to diagnose and consolidate it.
+</Card>
+
+## Keeping agents on the rails
+
+Increasingly, the code that drifts is the code an agent wrote. Models are good at
+local edits but not at preserving architecture over time. They tend to:
+
+- inline too much and grow functions;
+- smear state across boundaries;
+- add imports through the wrong layer;
+- satisfy the letter of a vague rule while violating its intent.
+
+If you have to remind an agent of the same architectural rule repeatedly, that rule
+should probably be executable. Fensu's defaults target exactly these failure
+modes, and [`fensu skills`](/cli/skills) is the final piece: it generates agent
+guidance from your active rules, and keeps them in sync automatically. This means that the rules your agent
+follows are the rules your CI enforces.
+
+## Battle-tested
+
+Fensu is not a tool built for an imagined problem. Earlier versions of these checks
+ran unnamed for months, first in workplace codebases and then in
+[sqlbuild](https://github.com/sqlstack-io/sqlbuild), a 100k+ line Python project.
+That hard-won structure is what shaped the defaults.
+
+## Get started
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Install Fensu, configure a repo, and read your first faults in a few minutes.
+  </Card>
+  <Card title="Philosophy" icon="compass" href="/philosophy">
+    Why Fensu is strict by default, and how deliberate deviation works.
+  </Card>
+  <Card title="Architecture model" icon="sitemap" href="/concepts/architecture-model">
+    Scopes, roles, and the default module layout Fensu enforces.
+  </Card>
+  <Card title="Adopting Fensu" icon="seedling" href="/adoption">
+    Rolling out on a new repo versus an existing one.
+  </Card>
+  <Card title="Custom rules" icon="code" href="/concepts/custom-rules">
+    Write your own rules in Python with the same context the core rules use.
+  </Card>
+  <Card title="Native rule packs" icon="boxes-stacked" href="/concepts/rule-packs">
+    Activate a shipped standalone policy, including the native Dagster pack.
+  </Card>
+</CardGroup>

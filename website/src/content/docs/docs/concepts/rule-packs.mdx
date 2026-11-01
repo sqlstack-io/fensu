@@ -1,0 +1,86 @@
+---
+title: Overview
+description: "Understand Fensu-shipped native policies, pack activation, namespaces, aliases, and execution."
+---
+
+Native rule packs are complete, Fensu-shipped policies for a particular framework
+or architecture. They run in Rust like core rules, but stay out of the catalogue
+until a repository explicitly activates them.
+
+Use a native pack when Fensu ships an architecture policy that should replace the
+generic core policy for that kind of repository. Packs can combine
+framework-specific rules with transparent aliases of compatible core or pack rules,
+presenting one coherent namespace for selection, diagnostics, and generated
+skills.
+
+## Activation and selection
+
+Pack activation and rule selection are separate:
+
+```toml
+rule_packs = ["dagster"]
+select = ["FPDG"]
+```
+
+- `rule_packs` controls which shipped catalogues are available.
+- `select`, `warn`, and `ignore` assign available pack identities to policy tiers.
+- Activating a pack does not select it.
+- A pack selector matches no identities until its pack is activated.
+- Pack names must be registered and unique.
+
+This separation lets a repository activate a catalogue while selecting one rule,
+one family of aliases, or the complete policy. The exact selectors belong to each
+pack's reference page.
+
+## Codes and namespaces
+
+Fensu reserves `FP` for shipped native packs. Each pack owns a namespace beneath
+that prefix. The Dagster, Rust, TypeScript, and SvelteKit packs own `FPDG`, `FPRS`,
+`FPTS`, and `FPSK`.
+
+Pack-native rules append their numeric identity directly, such as `FPDG022`.
+Retained core aliases preserve the core family and number after the pack namespace:
+`FFA001` becomes `FPDGA001` in the Dagster pack.
+Pack-to-pack aliases follow the same rule: `FPTSA001` becomes `FPSKA001` in the
+standalone SvelteKit pack.
+
+An alias executes the canonical native implementation while diagnostics retain the
+selected pack identity and disclose provenance:
+
+```text
+FPDGA001 (alias FFA001)  function parameter 'value' must define a type annotation
+```
+
+The canonical code and its alias cannot occupy the same tier because that would
+select one implementation twice. Fensu rejects the overlap instead of emitting
+duplicate diagnostics.
+
+## Native execution
+
+Pack-native rules and retained aliases execute without starting Python. They use
+the same deterministic discovery, caching, warning, ignore, exception, and output
+machinery as core rules.
+
+Activating a native pack by itself does not require a Python interpreter. A project
+that also configures `rule_paths`, `rule_modules`, or custom-rule options still
+uses the custom-rule metadata host for those custom rules.
+
+[`fensu rule`](/cli/rule) shows `Kind: pack`, the owning pack, and any canonical
+alias target for an activated identity.
+
+## Available packs
+
+<CardGroup cols={2}>
+  <Card title="Dagster" icon="diagram-project" href="/concepts/rule-packs/dagster">
+    A standalone Dagster repository architecture with 23 native policies and 101
+    retained core aliases.
+  </Card>
+  <Card title="TypeScript and SvelteKit" icon="code" href="/concepts/analyzers/typescript-sveltekit">
+    Framework-independent TypeScript policy and a standalone SvelteKit policy
+    with transparent TypeScript aliases.
+  </Card>
+  <Card title="Rust" icon="gear" href="/concepts/analyzers/rust">
+    Native Cargo workspace analysis with 117 layout, dependency, naming, shape,
+    hygiene, and test-convention rules.
+  </Card>
+</CardGroup>

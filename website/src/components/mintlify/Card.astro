@@ -1,0 +1,60 @@
+---
+import Code from '@lucide/astro/icons/code';
+import Compass from '@lucide/astro/icons/compass';
+import Network from '@lucide/astro/icons/network';
+import Rocket from '@lucide/astro/icons/rocket';
+import Copy from '@lucide/astro/icons/copy';
+import Sprout from '@lucide/astro/icons/sprout';
+import Bot from '@lucide/astro/icons/bot';
+import Braces from '@lucide/astro/icons/braces';
+import Check from '@lucide/astro/icons/check';
+import Database from '@lucide/astro/icons/database';
+import Settings from '@lucide/astro/icons/settings';
+import ListChecks from '@lucide/astro/icons/list-checks';
+import Search from '@lucide/astro/icons/search';
+import Boxes from '@lucide/astro/icons/boxes';
+import Layers from '@lucide/astro/icons/layers';
+import FolderTree from '@lucide/astro/icons/folder-tree';
+import Ruler from '@lucide/astro/icons/ruler';
+import Signature from '@lucide/astro/icons/signature';
+
+interface Props {
+	title: string;
+	href?: string;
+	icon?: string;
+}
+
+// Imported Mintlify icon names mapped to the family's Lucide icon set.
+const icons = {
+	clone: Copy,
+	seedling: Sprout,
+	sitemap: Network,
+	robot: Bot,
+	'brackets-curly': Braces,
+	check: Check,
+	database: Database,
+	gear: Settings,
+	'list-check': ListChecks,
+	'magnifying-glass': Search,
+	'boxes-stacked': Boxes,
+	'layer-group': Layers,
+	'folder-tree': FolderTree,
+	'ruler-combined': Ruler,
+	signature: Signature,
+	code: Code,
+	compass: Compass,
+	'diagram-project': Network,
+	rocket: Rocket,
+} as const;
+
+const { title, href, icon } = Astro.props;
+const Icon = icon ? icons[icon as keyof typeof icons] : undefined;
+if (icon && !Icon) throw new Error(`Unknown card icon: ${icon}`);
+const Tag = href ? 'a' : 'div';
+---
+
+<Tag class="sqb-card" href={href}>
+	{Icon && <Icon class="sqb-card-icon" size={18} stroke-width={1.75} aria-hidden="true" />}
+	<span class="sqb-card-title">{title}</span>
+	<span class="sqb-card-body"><slot /></span>
+</Tag>

@@ -2,6 +2,9 @@ name: Verify
 
 on:
   pull_request:
+  push:
+    branches-ignore:
+      - main
   workflow_dispatch:
 
 permissions:
@@ -12,7 +15,70 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  verify:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      full: ${{ steps.select.outputs.full }}
+      content: ${{ steps.select.outputs.content }}
+      website: ${{ steps.select.outputs.website }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node --test .github/scripts/ci-checks.test.mjs
+      - name: Select checks from all changed paths
+        id: select
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || 'origin/main' }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          if [[ "$EVENT_NAME" == workflow_dispatch ]]; then
+            node .github/scripts/ci-checks.mjs --all >> "$GITHUB_OUTPUT"
+          else
+            # Classify the complete branch, not only the last push. A docs follow-up
+            # must not skip product checks cancelled by the preceding push.
+            base="$(git merge-base "$BASE_SHA" "$HEAD_SHA")"
+            git diff --no-renames --name-only -z "$base" "$HEAD_SHA" \
+              | node .github/scripts/ci-checks.mjs >> "$GITHUB_OUTPUT"
+          fi
+
+  content:
+    needs: changes
+    if: needs.changes.outputs.content == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node .github/scripts/check-content.mjs
+
+  website:
+    needs: changes
+    if: needs.changes.outputs.website == 'true'
+    # Match the Ubuntu versions supported by the locked Playwright browser installer.
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: website
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: website/package-lock.json
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm test
+
+  product:
+    needs: changes
+    if: needs.changes.outputs.full == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -29,6 +95,8 @@ jobs:
       - run: make verify
 
   rust:
+    needs: changes
+    if: needs.changes.outputs.full == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -46,6 +114,8 @@ jobs:
 
   shared-crates:
     name: Shared crate packages (Rust 1.85)
+    needs: changes
+    if: needs.changes.outputs.full == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -58,6 +128,8 @@ jobs:
       - run: .github/scripts/verify_shared_crate_packages.sh
 
   performance:
+    needs: changes
+    if: needs.changes.outputs.full == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -72,6 +144,8 @@ jobs:
       - run: make benchmark-budget
 
   windows:
+    needs: changes
+    if: needs.changes.outputs.full == 'true'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -88,6 +162,8 @@ jobs:
       - run: uv run pytest tests -q -n auto
 
   native-package-smoke:
+    needs: changes
+    if: needs.changes.outputs.full == 'true'
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
@@ -105,6 +181,8 @@ jobs:
       - run: uv run pytest tests/e2e/src/fensu/cli/main/test_entry.py tests/e2e/src/fensu/cli/main/test_native_distribution.py -q
 
   web-parser-analyzer-smoke:
+    needs: changes
+    if: needs.changes.outputs.full == 'true'
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
@@ -120,6 +198,8 @@ jobs:
       - run: "cargo test -p fensu-cli --test command test_check_rust::"
 
   source-build:
+    needs: changes
+    if: needs.changes.outputs.full == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -135,3 +215,17 @@ jobs:
       - run: uv venv .source-venv --python 3.12
       - run: uv pip install --python .source-venv/bin/python --no-deps dist/*.tar.gz
       - run: .source-venv/bin/fensu --version
+
+  verify:
+    if: always()
+    needs: [changes, content, website, product, rust, shared-crates, performance, windows, native-package-smoke, web-parser-analyzer-smoke, source-build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Require all selected checks to succeed
+        env:
+          CHECK_RESULTS: ${{ toJSON(needs) }}
+        run: node .github/scripts/ci-checks.mjs verify

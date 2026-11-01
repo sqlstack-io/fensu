@@ -1,0 +1,66 @@
+---
+title: Overview
+description: "Top-level Fensu commands, help, version output, and exit-code conventions."
+---
+
+The `fensu` command initializes policy, checks repositories, reports duplicated
+code, explains rules, maps call flow, installs generated agent guidance, and
+manages analyzer targets.
+
+```bash
+fensu --help
+```
+
+```text
+Usage: fensu {init,check,dupes,rule,map,skills,target} ...
+
+Commands:
+  init    Initialize Fensu configuration for a repository.
+  check   Evaluate repository architecture rules.
+  dupes   Report duplicated code (advisory; never fails on findings).
+  rule    Show details for one rule.
+  map     Render a directional project call map.
+  skills  Generate and install agent guidance.
+  target  Add an explicit analyzer target.
+```
+
+## Commands
+
+| Command | Purpose |
+| --- | --- |
+| [`fensu init`](/cli/init) | Detect a repository and write starting configuration. |
+| [`fensu check`](/cli/check) | Evaluate blocking rules and optional warnings. |
+| [`fensu dupes`](/cli/dupes) | Report duplicated code as advisory review input. |
+| [`fensu rule`](/cli/rule) | Inspect one configured rule. |
+| [`fensu map`](/cli/map) | Render a downstream or upstream project call tree. |
+| [`fensu skills`](/cli/skills) | Generate, install, and verify project agent guidance. |
+| [`fensu target`](/cli/target) | Add a validated SvelteKit analyzer target. |
+
+Run `fensu <command> --help` for command-specific options.
+
+## Version
+
+Both help forms exit `0`:
+
+```bash
+fensu --help
+fensu -h
+```
+
+Print the installed package version with:
+
+```bash
+fensu --version
+```
+
+```text
+fensu 0.4.0
+```
+
+## Exit codes
+
+Commands generally use `0` for success and `2` for usage, configuration, or setup
+errors. `fensu check` uses `1` for blocking faults, `fensu dupes` exits `0`
+whatever it finds, and
+`fensu skills --check` uses `1` when generated files need an update. See
+each command page for its complete contract.
