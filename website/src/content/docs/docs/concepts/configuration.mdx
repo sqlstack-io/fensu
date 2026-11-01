@@ -339,7 +339,7 @@ symbols = ["ProgressCollector.update"]
 reason = "The external API invokes this callback positionally."
 ```
 
-Omit `symbols` only for an ownerless file-level finding:
+Omit `symbols` to accept matching-rule findings throughout the exact file:
 
 ```toml
 [[rule_exceptions]]
@@ -348,14 +348,18 @@ path = "src/my_package/integrations/compatibility.py"
 reason = "This file remains a direct module while the external integration is supported."
 ```
 
-Omitting `symbols` does not suppress findings owned by functions in that file. If
-`symbols` is present, it must be non-empty; `symbols = []` is rejected rather than
-silently broadening the exception to file scope.
+This file-level form also suppresses matching findings owned by functions or
+items in that file, for every analyzer. Include `symbols` when only particular
+owners should be exempt. If present, it must be non-empty; `symbols = []` is
+rejected rather than silently broadening the exception to file scope.
 
 The rule, repository-relative analyzer source file, and any qualified symbols are exact:
 globs, directories, line numbers, and rule prefixes are not accepted. The path and
 symbols must exist, and `fensu check` fails if either form becomes stale and
-suppresses no fault.
+suppresses no fault. Each listed symbol must suppress a fault; missing or ambiguous
+symbols are configuration errors. Rust uses item paths such as `Record::load`;
+`Cargo.toml` exceptions cannot name symbols. See
+[Rust exception selectors](/concepts/analyzers/rust#what-it-checks).
 
 ## Path-scoped rule ignores
 

@@ -38,6 +38,13 @@ Commands:
 
 Run `fensu <command> --help` for command-specific options.
 
+## Execution model
+
+Core-only `check`, `dupes`, `init`, `rule`, `map`, `skills`, and `--version`
+execution is native. Configured Python custom rules launch one compatible Python
+host only for the policy metadata or callbacks they require. The native executable
+remains the command owner; Python hosting is not a second CLI implementation.
+
 ## Version
 
 Both help forms exit `0`:

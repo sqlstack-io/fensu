@@ -121,7 +121,7 @@ accidental public surfaces.
 ## Domains: leaf or branch
 
 Fensu's default layout for product code is **domains built from roles**, not a
-flat top level.
+flat top level. The default architecture follows SQLBuild Compiler Rules v0.101.1.
 
 - An ownership root (by default the package root, for example
   `src/my_package/`) holds only its package protocol modules, deliberate public
@@ -139,6 +139,14 @@ leaf; it splits into named subdomains only when it grows genuinely independent
 parts. There is no mandatory subdomain level and no conventional `core/`
 ceremony. Loose non-role modules directly at the domain level fault too
 (`FFR307`).
+
+Every leaf domain or subdomain requires a direct `main/` boundary containing at
+least one meaningful entry module. Branch-domain parents do not need their own
+`main/`; their leaf subdomains do. An empty or initializer-only `main/` is not a
+substitute for behavior. Move passive-only models, types, constants, exceptions,
+or classes into the closest domain whose `main/` behavior owns and uses them.
+Fixed role files are siblings of `_helpers/`, not descendants such as
+`_helpers/entry/models.py`.
 
 ```text
 src/my_package/

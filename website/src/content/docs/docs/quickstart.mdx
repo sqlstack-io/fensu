@@ -24,6 +24,16 @@ fensu --version
 
 Fensu needs Python 3.12 or newer.
 
+The `fensu` distribution provides the Python authoring/API surface and installs the
+lockstep `fensu-cli` binary distribution, which owns the `fensu` command. Use that
+executable for built-in commands; `python -m fensu` is retired. See the
+[CLI execution model](/cli#execution-model) for native commands and custom-rule hosting.
+
+Fensu includes a compiled analysis core. Prebuilt wheels cover Linux (x86_64 and
+aarch64), macOS (Intel and Apple silicon), and Windows (x86_64). Where no compatible
+wheel is available, `pip` builds from source; this requires Rust 1.95 or newer,
+including when installing `fensu-cli` from its source distribution.
+
 ## 2. Initialize
 
 [`fensu init`](/cli/init) is the fastest way to start. It detects your layout,
