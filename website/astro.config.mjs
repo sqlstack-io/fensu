@@ -6,10 +6,8 @@ import { sidebar, redirects } from './src/navigation.mjs';
 import { fensuDark, fensuLight } from './src/code-themes.mjs';
 import mintlifyContent from './src/mintlify-content.mjs';
 
-const site = process.env.SITE_URL || process.env.CF_PAGES_URL || 'http://localhost:4321';
-
 export default defineConfig({
-  site,
+  site: 'https://fensu.io',
   redirects,
   markdown: { processor: unified({ remarkPlugins: [mintlifyContent] }) },
   integrations: [starlight({
@@ -20,11 +18,11 @@ export default defineConfig({
     head: [
       { tag: 'link', attrs: { rel: 'icon', type: 'image/png', href: '/assets/icon-dark.png', media: '(prefers-color-scheme: dark)' } },
       { tag: 'link', attrs: { rel: 'apple-touch-icon', href: '/assets/apple-touch-icon.png' } },
-      { tag: 'meta', attrs: { property: 'og:image', content: `${site}/assets/og-fensu.png` } },
+      { tag: 'meta', attrs: { property: 'og:image', content: 'https://fensu.io/assets/og-fensu.png' } },
       { tag: 'meta', attrs: { property: 'og:image:width', content: '1200' } },
       { tag: 'meta', attrs: { property: 'og:image:height', content: '630' } },
       { tag: 'meta', attrs: { name: 'twitter:card', content: 'summary_large_image' } },
-      { tag: 'meta', attrs: { name: 'twitter:image', content: `${site}/assets/og-fensu.png` } },
+      { tag: 'meta', attrs: { name: 'twitter:image', content: 'https://fensu.io/assets/og-fensu.png' } },
     ],
     social: [{ icon: 'github', label: 'Fensu on GitHub', href: 'https://github.com/sqlstack-io/fensu' }],
     components: {
