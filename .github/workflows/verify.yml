@@ -60,7 +60,8 @@ jobs:
   website:
     needs: changes
     if: needs.changes.outputs.website == 'true'
-    runs-on: ubuntu-latest
+    # Match the Ubuntu versions supported by the locked Playwright browser installer.
+    runs-on: ubuntu-24.04
     defaults:
       run:
         working-directory: website
