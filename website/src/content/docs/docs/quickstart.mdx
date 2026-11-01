@@ -49,6 +49,13 @@ run `fensu init --yes --name my_package`; init scaffolds a `src/` package and
 `tests/` directory. Pass `--no-skills` only when automation explicitly needs
 configuration without repository-local agent guidance.
 
+Existing configuration is preserved: `init` changes nothing when `fensu.toml`
+already exists. Use [`fensu skills`](/cli/skills) to install or refresh guidance
+for a configured project. See [`fensu init`](/cli/init) for detection and setup
+options, or the [Rust](/concepts/analyzers/rust) and
+[TypeScript/SvelteKit](/concepts/analyzers/typescript-sveltekit) guides for
+language-specific configuration.
+
 Verify that every generated local skill is present and current before calling
 onboarding complete:
 

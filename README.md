@@ -13,9 +13,6 @@ shape** for Python, Rust, TypeScript, JavaScript, and Svelte.
 - **Roles:** keep entry points, helpers, models, and types in their owning modules.
 - **Function shape:** keep orchestrators small, dataflow explicit, and signatures clear.
 
-Fensu is pre-release and self-hosting. It ships an opinionated default architecture,
-not a blank rule framework; tune or replace policies deliberately.
-
 ## Get started
 
 Requires **Python 3.12+**. Install in your project’s Python environment:
@@ -28,28 +25,17 @@ From an existing Python repository’s `pyproject.toml` directory:
 
 ```bash
 fensu init --yes
-fensu skills --check
 fensu check
 ```
 
-`init` detects the layout, writes `fensu.toml`, measures current drift, and installs
-repository-local agent guidance. It detects complete SvelteKit projects too; see
-[web targets](https://fensu.io/docs/concepts/analyzers/typescript-sveltekit/).
-For an empty repository, use `fensu init --yes --name my_package` instead.
+`fensu init --yes` detects your project, creates `fensu.toml`, runs an initial check,
+and installs agent guidance. Existing configuration is preserved.
 
-Already configured? `init` leaves existing configuration unchanged. Run
-`fensu skills` to install or refresh guidance, then verify it with `--check`.
-Unmanaged skill files are preserved unless you explicitly pass `--force`.
-Use `init --no-skills` only for deliberate configuration-only automation.
+Run `fensu check` locally and in CI to enforce your policy. For established
+repositories, [adopt rules incrementally using explicit boundaries and exceptions](https://fensu.io/docs/adoption/).
 
-`check` exits **0** with no blocking faults, **1** when it finds faults, and **2**
-for setup/configuration errors. Put `fensu check` in CI to enforce the policy.
-
-New and small repositories are the easiest starting point. On established codebases,
-expect drift: use [adoption boundaries and explicit exceptions](https://fensu.io/docs/adoption/)
-rather than making unsafe structural changes just to reach zero.
-Rust projects use [Cargo-aware target configuration](https://fensu.io/docs/concepts/analyzers/rust/).
-See [installation details](https://fensu.io/docs/quickstart/#1-install) for wheels and source builds.
+See the [quickstart](https://fensu.io/docs/quickstart/) for empty repositories,
+existing configuration, and language-specific setup.
 
 ## A finding and its fix
 
