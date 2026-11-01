@@ -1,5 +1,12 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/sqlstack-io/fensu/main/.github/fensu-logo-wide.png" alt="Fensu" width="100%">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="website/public/assets/logo-dark.png">
+    <img src="website/public/assets/logo-light.png" alt="Fensu" width="324">
+  </picture>
+</p>
+
+<p align="center">
+  <sub>by <a href="https://sqlstack.io">SQLStack</a></sub>
 </p>
 
 <p align="center">
@@ -378,3 +385,11 @@ for the complete API and configuration.
 
 The quickstart, architecture model, configuration reference, adoption guide, and
 CLI reference live at [docs.fensu.dev](https://docs.fensu.dev).
+
+## Part of SQLStack
+
+<picture><source media="(prefers-color-scheme: dark)" srcset="website/public/assets/sqlstack-dark.png"><img src="website/public/assets/sqlstack.png" alt="" width="24"></picture> Fensu is part of [SQLStack](https://sqlstack.io), a family of tools for data engineers.
+
+- [SQLBuild](https://sqlbuild.com) — SQL transformations with compile-time checks, end-to-end tests, and safe renames.
+- [SQLClean](https://sqlclean.io) — Fast SQL linting and deterministic formatting.
+- [SQLTide](https://docs.streambuild.dev) — Build, replay, and safely deploy ClickHouse streaming pipelines with SQL.
