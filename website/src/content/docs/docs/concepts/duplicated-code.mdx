@@ -1,0 +1,336 @@
+---
+title: Duplicated Code
+description: "Why copied functions are architectural drift, how copies diverge, and how fensu dupes and fensu check work together to consolidate them."
+---
+
+`fensu check` enforces rules about where code lives and how it is shaped. It has
+no rule for "this logic already exists somewhere else", because no rule can say
+in advance which two functions ought to be one. Duplication still counts as
+architectural drift, though. It is simply drift that shows up as evidence rather
+than as a rule violation.
+
+[`fensu dupes`](/cli/dupes) collects that evidence. It reports ranked clusters of
+function-level copies, so you can decide what each one means.
+
+## Why a copy is drift
+
+A copied function is rarely just repeated text. It usually points at a structural
+problem:
+
+- **A missing shared owner.** Several modules needed the same behaviour, and none
+  of them owned it, so each grew its own copy.
+- **Parallel implementations of one concept.** Two subsystems each implement "what
+  counts as available stock" or "how an order total is computed".
+- **Logic on the wrong side of a boundary.** Behaviour that belongs to one domain
+  was re-implemented in its callers instead of being published by its owner.
+
+Once copies exist, they drift apart without anyone noticing. A fix lands in the
+copy someone was looking at, and the others keep the bug. Each copy can still
+pass its own tests, and `fensu check` still reports `Found 0 faults`, because
+every copy sits in a valid place with a valid shape.
+
+## Evidence worth keeping
+
+Similarity is deterministic. The same source always yields the same clusters, so
+a cluster is a concrete, reproducible claim you can review.
+
+A cluster is also usually the **only** trace of the underlying drift. Once you
+merge the copies, the missing owner, the misplaced logic, or the fix that
+reached only one copy stops being visible anywhere. Diagnose before you
+consolidate:
+
+1. Work out why the copy exists.
+2. Use `--diff` to see which differences are deliberate and which are an
+   unfinished fix.
+3. Record the diagnosis in the review, handoff, or an issue.
+4. Then remove the copies.
+
+## A worked example
+
+A small shop publishes its product catalogue in three feed formats. Each feed is
+its own subdomain under `feeds/`, and each copied the same row-preparation helper
+into its own `_helpers/rows.py`. The JSON feed genuinely differs: it publishes
+prices in cents, while the others publish decimal prices.
+
+```text
+src/shop/feeds/
+├── csv/
+│   ├── _helpers/rows.py    # prepare_rows
+│   └── main/export_feed.py
+├── json/
+│   ├── _helpers/rows.py    # prepare_rows, prices in cents
+│   └── main/export_feed.py
+└── tsv/
+    ├── _helpers/rows.py    # prepare_rows
+    └── main/export_feed.py
+```
+
+The repository is clean under the default policy:
+
+```text
+$ fensu check
+Found 0 faults
+```
+
+### A fix that reached one copy
+
+A branch stops exporting discontinued products. The developer found the CSV
+helper and fixed it there:
+
+```python
+        if available <= 0 or product.get("discontinued"):
+            continue
+```
+
+`fensu check` still passes. Before review, `fensu dupes` compares the branch with
+`main`:
+
+```text
+$ fensu dupes --since main --diff
+fensu dupes: 1 duplicated-code cluster changed since main (advisory; duplicated-code findings to review, not fensu check failures)
+analysed python 3 units; 0 allowlisted pairs hidden; 0 contract-exempt members hidden
+  1. near-miss sim 0.96-0.99, ~248 duplicated tokens, 3 members
+     src/shop/feeds/csv/_helpers/rows.py:4-17 prepare_rows (133 tokens) [changed]
+     src/shop/feeds/json/_helpers/rows.py:4-17 prepare_rows (124 tokens)
+     src/shop/feeds/tsv/_helpers/rows.py:4-17 prepare_rows (126 tokens)
+     diff src/shop/feeds/csv/_helpers/rows.py:4-17 vs src/shop/feeds/json/_helpers/rows.py:4-17
+       - 12: if available <= 0 or product.get("discontinued"):
+       + 12: if available <= 0:
+       - 15: rows.append({"sku": sku, "available": available, "price": price_cents / 100})
+       + 15: rows.append({"sku": sku, "available": available, "price_cents": price_cents})
+```
+
+The diff shows two different kinds of difference:
+
+- **Line 12** is the fix. It reached the CSV feed only, so the JSON and TSV feeds
+  would keep publishing discontinued products.
+- **Line 15** is a genuine difference: the JSON feed's price format.
+
+### The diagnosis
+
+The feeds share one concept, "the rows a feed publishes", and nothing owns it.
+The three copies are the symptom, and the partial fix is the cost. Write that
+down before touching the code, for example:
+
+```text
+Three feeds copied prepare_rows. The discontinued-product fix reached only CSV.
+The only intended difference is the price format. Consolidate into one owner under
+feeds/ with the price format as an explicit parameter.
+```
+
+### Consolidating into a shared owner
+
+The obvious shortcut is to keep the CSV copy and import it from the other feeds.
+`fensu check` rejects that, because it reaches into another owner's internals:
+
+```text
+FFL101  import 'shop.feeds.csv._helpers.rows' reaches into sibling internals
+ --> src/shop/feeds/tsv/main/export_feed.py:3:0
+  |
+3 | from shop.feeds.csv._helpers.rows import prepare_rows
+  | ^
+  |
+  = help: Publish the dependency through the owning sibling's main/ entry or role files.
+```
+
+Instead, the behaviour gets its own owner, `feeds/rows/`, and the real
+difference becomes an explicit keyword argument rather than a divergent copy:
+
+```python
+# src/shop/feeds/rows/main/_prepare_rows.py
+def prepare_rows(
+    *, products: list[dict[str, object]], price_in_cents: bool
+) -> list[dict[str, object]]:
+    """Return feed rows for products that are in stock and still sold."""
+    rows: list[dict[str, object]] = []
+    for product in products:
+        sku: str = str(product["sku"]).strip().upper()
+        on_hand: int = int(product["on_hand"])
+        reserved: int = int(product["reserved"])
+        available: int = on_hand - reserved
+        if available <= 0 or product.get("discontinued"):
+            continue
+        price_cents: int = int(product["price_cents"])
+        price: dict[str, object] = (
+            {"price_cents": price_cents} if price_in_cents else {"price": price_cents / 100}
+        )
+        rows.append({"sku": sku, "available": available, **price})
+    rows.sort(key=lambda row: str(row["sku"]))
+    return rows
+```
+
+```python
+# src/shop/feeds/json/main/export_feed.py
+rows: list[dict[str, object]] = prepare_rows(products=products, price_in_cents=True)
+```
+
+`check` shaped that placement too. The first draft named the module
+`prepare_rows.py`, and `check` returned two faults:
+
+- `FFS120` asked for keyword-only parameters, so every call names its meaning.
+- `FFL105` reported that a public `main/` entry imported only from inside its
+  own `feeds` domain should carry a `_` prefix until another domain needs it.
+
+With those fixed, the fix applies to every feed and the branch is clean:
+
+```text
+$ fensu check
+Found 0 faults
+```
+
+### What is left
+
+Running `dupes` again on the area surfaces one more pair:
+
+```text
+$ fensu dupes --path 'src/shop/feeds/**'
+fensu dupes: 1 duplicated-code cluster (advisory; duplicated-code findings to review, not fensu check failures)
+analysed python 3 units; 0 allowlisted pairs hidden; 0 contract-exempt members hidden
+  1. renamed sim 1.00, ~61 duplicated tokens, 2 members
+     src/shop/feeds/csv/main/export_feed.py:6-10 export_feed (61 tokens)
+     src/shop/feeds/tsv/main/export_feed.py:6-10 export_feed (61 tokens)
+```
+
+The CSV and TSV entry points differ only in their delimiter, which is exactly
+what `renamed` means. Here the team decides that each published format owns its
+entry point, so formats can change independently. That makes the pair an
+intentional mirror, recorded with its reason:
+
+```toml
+[[dupes.allowlist]]
+paths = ["src/shop/feeds/*/main/export_feed.py"]
+reason = "Each published feed format owns its entry point so formats can change independently."
+```
+
+```text
+$ fensu dupes
+fensu dupes: 0 duplicated-code clusters (advisory; duplicated-code findings to review, not fensu check failures)
+analysed python 3 units; 1 allowlisted pairs hidden; 0 contract-exempt members hidden
+no duplicated code found
+```
+
+## How dupes and check fit together
+
+The two commands split the work:
+
+- **`fensu dupes` finds candidates.** It tells you that behaviour exists more
+  than once and where the copies disagree.
+- **`fensu check` constrains the fix.** Its [layer](/concepts/rule-families#ffl-layers)
+  and [role](/concepts/rule-families#ffr-roles) rules decide where the new shared
+  owner can live and how other owners may import it, as the `FFL101` and
+  `FFL105` faults above show.
+
+Neither replaces the other. `check` cannot see that two valid functions are one
+concept. `dupes` has no opinion about where the consolidated owner belongs.
+
+## Intentional duplication
+
+Not every copy should be merged. Fensu gives you two explicit, reviewable ways
+to keep one. Both require a `reason` and live in `fensu.toml`, never in source
+comments.
+
+### Mirrors
+
+Some code intentionally mirrors something else: one module per published format,
+per external specification, or per independently versioned contract. Record the
+mirror in [`[dupes].allowlist`](/cli/dupes#allowlist) so the cluster stops
+reappearing, and so the reason is on record for the next reader.
+
+### Contract-forced copies
+
+Some interfaces require every implementation to define a method itself. For
+example, a contract test may check that each exporter implements `export`
+directly rather than inheriting it. Those copies are required, and a
+[contract exemption](/cli/dupes#contract-exemptions) marks them `[forced]` and
+hides the links between them.
+
+The exemption covers only the forced methods. A private helper copied behind
+them is still ordinary duplication and should still be shared:
+
+```text
+$ fensu dupes --path 'src/shop/exporters/*'
+fensu dupes: 1 duplicated-code cluster (advisory; duplicated-code findings to review, not fensu check failures)
+analysed python 9 units; 0 allowlisted pairs hidden; 2 contract-exempt members hidden
+  1. exact sim 1.00, ~74 duplicated tokens, 2 members
+     src/shop/exporters/csv_exporter.py:4-13 _render_lines (74 tokens)
+     src/shop/exporters/json_exporter.py:4-13 _render_lines (74 tokens)
+```
+
+The two `export` methods are hidden as contract-exempt. The `_render_lines`
+helper each of them calls is still reported, because nothing requires that
+helper to be copied.
+
+## What it is not
+
+- **Not a gate.** `fensu dupes` exits `0` whenever analysis succeeds. It never
+  fails CI on findings.
+- **Not a zero target.** Findings never need to reach zero. A cluster is a
+  hypothesis, and some clusters are correct as they are.
+- **Not a style metric.** There is no duplication score or percentage. Clusters
+  are ranked by estimated duplicated tokens, only to put the largest copies first.
+- **Function-level only.** Units are functions and methods. Module-level code
+  is not compared, and a block copied into two otherwise different functions
+  appears only if the whole functions are similar enough.
+
+### What the categories mean
+
+| Category | Meaning in practice |
+| --- | --- |
+| `exact` | The same code, ignoring comments, docstrings, and type annotations. A pure copy. |
+| `renamed` | The same structure with different local names or literals, like the CSV and TSV entry points above. |
+| `near-miss` | Mostly the same, with some real differences, like a fix in one copy only. |
+
+Similarity (`sim`) is a token-level match ratio from `0` to `1`. Local names,
+parameters, attribute reads, and literals are normalised away. Called function
+names are kept, so two functions with the same shape that call different helpers
+count as near-misses rather than renamed copies.
+
+### Known limits
+
+- Units with fewer than 60 normalised tokens are ignored (`--min-tokens`). A
+  near-miss needs similarity `0.8` or higher (`--min-similarity`), and at least
+  `0.9` when the smaller unit has fewer than 80 tokens.
+- Supported languages are Python, Rust, TypeScript, JavaScript, and Svelte.
+  TypeScript, JavaScript, and Svelte are compared with each other. Python and
+  Rust are compared only within their own language.
+- Test code is skipped unless you pass `--include-tests`.
+- Fragments shared by very many units are treated as boilerplate and do not
+  produce candidates.
+- Contract exemptions apply to Python classes only.
+
+See [`fensu dupes`](/cli/dupes) for every option and configuration key.
+
+## With coding agents
+
+Agents copy code readily. When a model needs behaviour that already exists
+somewhere it has not read, writing it again is the easy path. Generated
+[agent skills](/cli/skills) include duplicated-code guidance unconditionally, so
+every agent working in the repository follows the same loop:
+
+1. **Before adding helpers or logic to an area**, run
+   `fensu dupes --path '<area glob>'` and reuse the existing owner. On the feeds
+   before consolidation, `--path 'src/shop/feeds/json/**'` would have shown all
+   three `prepare_rows` copies.
+2. **Before review**, run `fensu dupes --since origin/main` and look at every
+   cluster marked `[changed]`, with `--diff` for divergence.
+3. **Diagnose and report** why a genuine copy exists before consolidating it,
+   and keep consolidation within the requested scope.
+4. **Allowlist intentional mirrors** with a reason instead of forcing a merge.
+5. **Run `fensu check`** so the consolidated owner lands in the right place.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="fensu dupes" icon="clone" href="/cli/dupes">
+    Every option, output format, and `[dupes]` configuration key.
+  </Card>
+  <Card title="Adopting Fensu" icon="seedling" href="/adoption#duplicated-code-in-an-existing-repository">
+    Introducing dupes to an existing repository.
+  </Card>
+  <Card title="Architecture model" icon="sitemap" href="/concepts/architecture-model">
+    The owners and boundaries a consolidated function must respect.
+  </Card>
+  <Card title="fensu skills" icon="robot" href="/cli/skills">
+    Generated guidance that carries this workflow to agents.
+  </Card>
+</CardGroup>

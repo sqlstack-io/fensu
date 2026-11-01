@@ -1,0 +1,691 @@
+---
+title: Configuration
+description: "Every configuration key Fensu reads, how it discovers config, and how to override thresholds and contracts."
+---
+
+Fensu is configured with a `fensu.toml` file or a `[tool.fensu]` table in
+`pyproject.toml`. Configuration declares the scopes Fensu scans, the rules it
+runs, and the thresholds and contracts it enforces.
+
+## Where config comes from
+
+`fensu check`, `fensu rule`, and `fensu skills` load configuration by searching
+upward from the current directory. In each directory, Fensu looks for:
+
+1. `fensu.toml`
+2. a `pyproject.toml` containing a `[tool.fensu]` table
+
+The **nearest directory** wins, and within a directory `fensu.toml` takes
+precedence over `pyproject.toml`. The first source found is used whole; sources are
+never merged. If neither exists anywhere up the tree, Fensu reports:
+
+```text
+No fensu config found; create fensu.toml or [tool.fensu].
+```
+
+A standalone `fensu.toml` holds keys at the top level. In `pyproject.toml`, the
+same keys live under `[tool.fensu]`:
+
+<CodeGroup>
+```toml fensu.toml
+roots = ["src/my_package"]
+tests = ["tests"]
+tooling = ["scripts"]
+select = ["FF"]
+
+[thresholds]
+max_positional_args = 1
+```
+
+```toml pyproject.toml
+[tool.fensu]
+roots = ["src/my_package"]
+tests = ["tests"]
+tooling = ["scripts"]
+select = ["FF"]
+
+[tool.fensu.thresholds]
+max_positional_args = 1
+```
+</CodeGroup>
+
+<Note>
+  [`fensu map`](/cli/map) can use configured roots when they are available, but it
+  does not require configuration and ignores `[evaluation]` targeting.
+</Note>
+
+## Named analyzer targets
+
+The flat form above remains the concise configuration for one Python project.
+Use explicit targets for multiple projects or a Rust, TypeScript, or Svelte analyzer:
+
+```toml
+[targets.backend]
+analyzer = "python"
+root = "."
+roots = ["src/acme"]
+ownership_roots = ["src/acme/sources/*", "src/acme/runtime"]
+tests = ["tests"]
+select = ["FF"]
+
+[targets.web]
+analyzer = "svelte"
+root = "frontend"
+roots = ["src"]
+tests = ["tests"]
+test_layout = "mirrored"
+rule_packs = ["sveltekit"]
+select = ["FPSK"]
+
+[targets.rust]
+analyzer = "rust"
+roots = ["crates"]
+tests = []
+tooling = ["crates/project-tools"]
+rule_packs = ["rust"]
+select = ["FPRS"]
+```
+
+Each target requires `analyzer` and `roots`. `root` defaults to `.` and relocates
+that target's paths relative to the configuration directory. Explicit `targets`
+cannot be mixed with legacy flat keys; the top-level `repository_rules` table is
+the one repository-owned policy exception. `fensu check` evaluates every configured
+target unless `--target NAME` selects one. See
+[Repository rules](/concepts/repository-rules) for aggregate cross-target policy.
+
+The registered analyzers are `python`, `rust`, `typescript`, and `svelte`. Web-only keys
+include `test_layout`, `ui_kit`, `shadcn`, `openapi`, and `generated`; the normal
+policy, threshold, exception, evaluation, cache, and scope keys live inside each
+target too. The activated rule pack, rather than a separate framework setting,
+controls SvelteKit policy. See
+[TypeScript and SvelteKit](/concepts/analyzers/typescript-sveltekit) for detection,
+setup, and current boundaries.
+
+Rust targets use Cargo to discover workspace members, package identities, and source targets.
+They are configured entirely in `fensu.toml`; use ordinary `rule_options` for per-rule
+adjustments. See [Rust](/concepts/analyzers/rust) for setup and the supported options.
+
+## Validation is strict
+
+Fensu fails loudly on a bad config rather than silently ignoring it, because a
+silently dropped key is how a typo quietly disables a rule.
+
+- An unknown top-level key is rejected: `Unknown config key(s): ...`.
+- A flat config requires `roots`; an explicit config requires one or more named
+  targets, each with `analyzer` and `roots`.
+- Explicit `targets` cannot be mixed with legacy top-level policy keys. They may be
+  accompanied by top-level `repository_rules`.
+- `roots` entries must not be nested or overlapping.
+- `ownership_roots`, when present, must be a non-empty list of unique,
+  target-relative POSIX glob or brace patterns. Every declaration must select at
+  least one used directory beneath a product root, and equal-specificity matches
+  are rejected.
+- Every configured root path must exist on disk.
+- A path may not belong to two scopes, and two scopes may not claim the same
+  import package name (for example a `roots` entry and a `tooling` entry both
+  ending in `tools/`).
+- Selectors in `select`, `warn`, and `ignore` must be well formed.
+- Native `rule_packs` names must be registered and unique.
+- A resolved rule may not be both blocking and warning, or both warning and
+  ignored.
+- Threshold keys must be known threshold names with non-negative integer values.
+- Role names under `roles` must be known role names.
+- Each `threshold_overrides` entry must define exactly `paths`, `thresholds`, and
+  a non-empty `reason`, with repository-relative POSIX glob paths.
+- Each `rule_exceptions` entry must name one exact rule, one exact source file for
+  its analyzer, and a non-empty `reason`. An optional `symbols` list must contain
+  one or more qualified functions or methods when present.
+- Each `rule_ignores` entry must define non-empty `rules` selectors, non-empty
+  repository-relative POSIX glob `paths`, and a non-empty `reason`.
+- `[evaluation]` accepts only `include` and `exclude`; when present, each is a
+  non-empty list of repository-relative POSIX globs.
+- `[skills]` accepts only an optional non-empty `name`.
+- Contract behaviors must be recognized.
+
+## Top-level keys
+
+| Key | Type | Default | Purpose |
+| --- | --- | --- | --- |
+| `targets` | table of named targets | none | Explicit analyzer projects; mutually exclusive with all flat keys. |
+| `repository_rules` | table | none | Aggregate custom-rule policy for explicit named targets. |
+| `roots` | list of strings | required in a flat config or target | Product code scopes. No nesting. |
+| `ownership_roots` | list of strings | analyzer-specific | Directories below which domains and subdomains are classified. |
+| `tests` | list of strings | `["tests"]` | Test scopes. |
+| `test_scopes` | list of strings | `["unit", "integration", "e2e"]` | Directory names allowed directly under a test root. |
+| `tooling` | list of strings | `[]` | Dev tooling scopes. |
+| `select` | list of selectors | complete analyzer policy | Blocking rules to enable. |
+| `warn` | list of selectors | `[]` | Advisory rules evaluated by `fensu check --warn`. |
+| `ignore` | list of selectors | `[]` | Rule codes to disable. |
+| `rule_paths` | list of strings | `[]` | Directories of Python custom rule files to load. |
+| `rule_modules` | list of strings | `[]` | Importable Python modules holding custom rules. |
+| `rule_packs` | list of strings | `[]` | Fensu-shipped native policies to make available. |
+| `rule_options` | rule-code tables | declared defaults | Per-rule option overrides validated against the discovered catalogue. |
+| `thresholds` | table | shipped defaults | Global threshold overrides. |
+| `threshold_overrides` | array of tables | `[]` | Path-scoped threshold overrides with reasons. |
+| `rule_exceptions` | array of tables | `[]` | Exact rule/file exceptions, optionally narrowed to symbols, with reasons. |
+| `rule_ignores` | array of tables | `[]` | Additive selector-and-path finding suppression with reasons. |
+| `evaluation` | table | evaluate all discovered files | Direct rule-evaluation include/exclude globs. |
+| `cache` | table | caching on | Result-cache settings for `fensu check`. |
+| `skills` | table | inferred identity | Generated agent-skill settings. |
+| `roles` | table of tables | none | Per-role threshold overrides. |
+| `contracts` | table | ten shipped patterns | Name-glob to behavior contracts. |
+
+## Ownership roots
+
+`roots` answers **which product code Fensu scans**. `ownership_roots` answers
+**where domain ownership begins inside that code**. Use it when one source tree
+contains structural grouping directories and its domains begin at different
+physical depths:
+
+```toml
+[targets.app]
+analyzer = "python"
+roots = ["src/example"]
+ownership_roots = [
+  "src/example/sources/*",
+  "src/example/runtime",
+]
+```
+
+```text
+src/example/
+├── sources/                    # structural group
+│   ├── region_a/               # ownership root
+│   │   ├── orders/main/process.py
+│   │   └── partners/importing/main/load.py
+│   └── region_b/               # ownership root
+│       └── inventory/main/refresh.py
+└── runtime/                    # ownership root
+    ├── scraping/main/collect.py
+    └── observability/main/report.py
+```
+
+Here `orders`, `partners`, `inventory`, `scraping`, and `observability` are
+domains. `importing` is a subdomain. `sources/`, `region_a/`, and `region_b/`
+organize the tree but are not domains themselves.
+
+Patterns are relative to the target's `root`. They support `*`, a standalone
+`**` path segment, and deterministic brace alternatives such as
+`src/example/{sources/*,runtime}`. Each matching directory becomes one concrete
+ownership root. When roots overlap, the deepest concrete root applies to a file;
+when declarations select the same directory, the most-specific pattern owns it.
+Equal-specificity declarations fail instead of depending on declaration order.
+
+Structural directories above and including an ownership root cannot contain role
+files or role directories directly. A root also cannot cross `main/`,
+`_helpers/`, or `classes/`. Mirrored tests retain the complete production path,
+so they inherit the ownership root of the source they cover.
+
+When `ownership_roots` is omitted, defaults are analyzer-specific:
+
+| Analyzer | Default ownership roots |
+| --- | --- |
+| Python | Each configured product `root`. |
+| TypeScript and Svelte | The `lib/` directory below each configured product root. |
+| Rust | Cargo-inferred crate source roots. |
+
+Configuration fails closed if a declaration matches no directory, resolves
+outside a product root, contains no analyzable source, crosses a role directory,
+is shadowed by a more-specific declaration everywhere, or resolves to a concrete
+root that no source uses. This keeps a stale pattern from silently changing the
+architecture Fensu evaluates.
+
+## Selection
+
+`select`, `warn`, and `ignore` assign rules to policy tiers. A selector is a
+**rule-code prefix**, the same way ruff accepts prefixes and full codes, and any
+prefix of a valid code works:
+
+| Selector | Matches |
+| --- | --- |
+| `FF` | Every core rule. |
+| `FFR` | One core family (here: roles). |
+| `FFR3` | One hundreds bucket (here: the `FFR3xx` layout rules). |
+| `FFR301` | Exactly one rule. |
+| `FP` | Every activated native-pack rule. |
+| `FPTS` | The complete activated TypeScript policy. |
+| `FPSK` | The complete activated SvelteKit policy. |
+| `FPRS` | The complete activated Rust policy. |
+| `FPDG` | The complete activated Dagster policy. |
+| `FPDGA` | Dagster aliases of the core annotations family. |
+| `FPDG022` | Exactly one Dagster-native policy. |
+| `X` | Every custom rule. |
+| `XDB` | A custom namespace (every rule whose code starts with `XDB`). |
+| `XDB001` | Exactly one custom rule. |
+
+The Python core family letters are `FFL`, `FFR`, `FFS`, `FFN`, `FFH`, `FFT`, and `FFA`;
+see [Rule families](/concepts/rule-families). `FP` is reserved for activated
+[native rule packs](/concepts/rule-packs). Custom selectors follow custom codes:
+`X` plus optional uppercase letters plus optional digits, so namespaces nest by
+prefix (see [Custom rules](/concepts/custom-rules#codes-and-namespaces)). Web
+analyzers use the activated `FPTS` or `FPSK` catalogue described in
+[TypeScript and SvelteKit](/concepts/analyzers/typescript-sveltekit). Rust uses the
+activated `FPRS` catalogue described in [Rust](/concepts/analyzers/rust).
+
+### The default
+
+`select` defaults to `["FF"]` for Python and `["FP"]` for Rust, TypeScript, or Svelte.
+For native targets, `FP` selects every activated pack. Rust targets activate the
+`rust` pack automatically. Web packs must be named in `rule_packs` before their
+selectors become available; generated SvelteKit targets activate `sveltekit` and
+select `FPSK` explicitly.
+
+### Run only some families
+
+Set `select` to the families you want. This replaces the default, so anything not
+listed is off:
+
+```toml
+select = ["FFL", "FFR", "FFS", "FFN"]   # architecture only: no hygiene, tests, or annotations
+```
+
+### Run only specific rules
+
+List individual codes to run a hand-picked set and nothing else:
+
+```toml
+select = ["FFL001", "FFL101", "FFS120"]
+```
+
+### Turn individual rules off
+
+Keep the broad `select` and remove the few you do not want with `ignore`. `ignore`
+always wins over `select`:
+
+```toml
+select = ["FF"]          # everything...
+ignore = ["FFH007", "FFA103"]   # ...except these two
+```
+
+### The warn tier
+
+`warn` is a separate, advisory ruleset. Its rules are evaluated only with
+[`fensu check --warn`](/cli/check#warnings), are reported after faults, and never
+affect the exit code:
+
+```toml
+select = ["FFL", "FFR", "FFS", "FFN", "FFH", "FFT"]
+warn = ["FFA"]
+```
+
+A rule cannot resolve into both `select` and `warn`, or both `warn` and `ignore`.
+Fensu compares resolved rule codes, so `select = ["FF"]` with `warn = ["FFA"]` is
+rejected as an overlap.
+
+### How it composes
+
+- A rule runs if it is enabled by default **and** matches a selector in `select`,
+  or if it is named by its exact code in `select`.
+- A rule named in `ignore` never runs, whatever `select` says.
+- A rule in `warn` is separate from the blocking set and runs only with `--warn`.
+- Selecting a family does **not** pull in that family's opt-in (default-off) rules.
+  Only naming such a rule by its exact code turns it on (for example
+  `select = ["FF", "FFS102"]`).
+- Activating a native pack makes its catalogue available but does not select it.
+  Select the pack namespace separately, for example `rule_packs = ["dagster"]`
+  with `select = ["FPDG"]`.
+
+## Exact rule exceptions
+
+Use `[[rule_exceptions]]` for an unavoidable finding in one exact file. Include
+`symbols` to narrow the exception to named functions or methods, such as an
+external callback signature:
+
+```toml
+[[rule_exceptions]]
+rule = "FFS120"
+path = "src/my_package/integrations/_helpers/callbacks.py"
+symbols = ["ProgressCollector.update"]
+reason = "The external API invokes this callback positionally."
+```
+
+Omit `symbols` only for an ownerless file-level finding:
+
+```toml
+[[rule_exceptions]]
+rule = "FFR307"
+path = "src/my_package/integrations/compatibility.py"
+reason = "This file remains a direct module while the external integration is supported."
+```
+
+Omitting `symbols` does not suppress findings owned by functions in that file. If
+`symbols` is present, it must be non-empty; `symbols = []` is rejected rather than
+silently broadening the exception to file scope.
+
+The rule, repository-relative analyzer source file, and any qualified symbols are exact:
+globs, directories, line numbers, and rule prefixes are not accepted. The path and
+symbols must exist, and `fensu check` fails if either form becomes stale and
+suppresses no fault.
+
+## Path-scoped rule ignores
+
+Use `[[rule_ignores]]` when selected rules should remain active globally but their
+findings are accepted under explicit path patterns:
+
+```toml
+[[rule_ignores]]
+rules = ["FFA", "XGENERATED"]
+paths = ["src/my_package/generated/**", "conftest.py"]
+reason = "Generated interfaces are checked by their source schema."
+```
+
+A finding is suppressed only when one declaration matches both its exact rule code
+through a selector and its reported repository-relative path through a glob.
+Different declarations cannot combine one declaration's selector with another's
+path. The rules still execute, ignored files remain available as complete project
+context, and the policy applies equally to blocking findings and `--warn` findings.
+
+Unlike exact `rule_exceptions`, path-scoped ignores are not stale-checked. Exact
+exceptions are applied and validated first, so a broad ignore cannot conceal a
+stale exact waiver.
+
+## Evaluation targeting
+
+The `[evaluation]` table narrows which discovered source files receive direct rule
+execution. It is intended for gradual adoption across a large repository:
+
+```toml
+[evaluation]
+include = [
+  "src/my_package/compiler/**",
+  "tests/unit/src/my_package/compiler/**",
+]
+exclude = [
+  "src/my_package/compiler/legacy/**",
+  "**/generated/**",
+]
+```
+
+Both keys are optional, producing four cases:
+
+| Configuration | Direct evaluation targets |
+| --- | --- |
+| Neither key | Every discovered source file. |
+| `exclude` only | Every discovered file except excluded matches. |
+| `include` only | Only included matches. |
+| `include` and `exclude` | Included matches minus excluded matches. |
+
+Exclude always wins. Patterns are repository-relative POSIX globs: `*` stays
+within one path component and `**` crosses directories. Every include pattern
+must match a discovered source file; unmatched excludes are allowed. A stale
+include or a configuration leaving zero targets fails instead of reporting a false
+green.
+
+Evaluation targeting does **not** shrink discovery or project context. Files not
+selected for direct evaluation remain available for module and ownership
+resolution, cross-file and directory queries, cache invalidation, and
+`fensu map`. An included importer can therefore still fault for reaching into an
+excluded file, and structural queries from included files still see excluded
+siblings. [`fensu check`](/cli/check#output) reports target and discovery counts
+when filtering is configured.
+
+### Choosing the right boundary
+
+These controls solve different problems:
+
+| Control | Effect |
+| --- | --- |
+| `roots`, `tests`, `tooling` | Define the complete discovered project universe and each file's scope. |
+| `warn` selectors | Report matching rules as nonblocking advice with `fensu check --warn`. |
+| `ignore` selectors | Disable matching rules globally. |
+| `rule_exceptions` | Suppress an exact file-level or rule/file/symbol finding and fail when it becomes stale. |
+| `rule_ignores` | Keep rules and project context active, but suppress matching selector/path findings. |
+| `evaluation.include` | Make a discovered subset the direct evaluation target. |
+| `evaluation.exclude` | Run no direct rules for matching discovered files. |
+
+Use `ignore` when a rule is wrong globally, `rule_exceptions` for isolated exact
+findings, `rule_ignores` for an accepted rule/path intersection, and evaluation
+targeting when matching files should receive no direct rule execution.
+
+## Test scopes
+
+Every test lives under a scope directory directly beneath a test root, and
+`test_scopes` lists the names allowed there. The default is:
+
+```toml
+test_scopes = ["unit", "integration", "e2e"]
+```
+
+Set it when your project uses a different vocabulary. A suite that runs against real
+external services is a common addition:
+
+```toml
+test_scopes = ["unit", "integration", "e2e", "real"]
+```
+
+The value replaces the default rather than adding to it, so list every scope you
+want. Each entry is a single lowercase directory name, entries must be unique, and
+the list must not be empty.
+
+The list stays closed on purpose. `tests/uint/` is a typo rather than a new scope,
+and `FFT002` reports it instead of leaving that tree unchecked. Mirroring is
+unchanged for a configured scope, so `tests/real/src/my_package/config/main/` mirrors
+`src/my_package/config/main/` the same way `tests/unit/` does.
+
+## Thresholds
+
+The `[thresholds]` table overrides the shipped numeric defaults globally. Every key
+must be a known threshold name (see [Architecture model](/concepts/architecture-model#default-thresholds)
+for the list and defaults):
+
+```toml
+[thresholds]
+max_statements = 50
+max_positional_args = 1
+max_file_lines = 1500
+max_helpers_container_modules = 12
+min_shared_domain_prefix_packages = 3
+min_custom_rule_test_cases = 2
+```
+
+This includes the container-layout limits `max_helpers_container_modules`,
+`max_main_container_modules`, and `max_role_depth` that govern
+[flat-or-grouped containers](/concepts/architecture-model#containers-flat-or-grouped).
+The two `min_` thresholds use `0` to disable their rule.
+
+### Per-role overrides
+
+The `[roles.<role>]` tables override thresholds for one role only, layered on top
+of the global values. Role names are the fixed Fensu roles (for example `main`,
+`helpers`, `classes`, `models`, `types`, `constants`, `exceptions`, `entry`).
+
+```toml
+[thresholds]
+max_statements = 40
+
+[roles.entry]
+max_statements = 30
+```
+
+<Note>
+  `roles` tables tune thresholds per role. They do not define new roles; the role
+  set is fixed. User-defined roles are a planned future addition.
+</Note>
+
+### Path-scoped threshold overrides
+
+`[[threshold_overrides]]` entries raise or lower thresholds for particular paths,
+with a required reason. Each entry defines exactly three keys:
+
+```toml
+[[threshold_overrides]]
+paths = ["src/my_package/reporting/**"]
+thresholds = { max_file_lines = 3000 }
+reason = "Generated report tables exceed the default line budget."
+```
+
+- `paths` is a non-empty list of repository-relative POSIX globs (`*` for one
+  segment, `**` for any depth; no absolute paths, `.`/`..` parts, or character
+  classes). Patterns are matched against the **fault's path**.
+- `thresholds` is a non-empty inline table of known threshold keys with
+  non-negative integer values.
+- `reason` is required and must be non-empty.
+
+When several entries match a path, the **most specific pattern wins**; among
+equally specific patterns, the later entry wins. A matching path override beats
+the `[roles]` and `[thresholds]` values. `fensu check` reports each applied
+override, with its pattern and reason, in the run summary.
+
+## Contracts
+
+The `[contracts]` table maps a function-name glob to one of four behaviors enforced
+by the naming family:
+
+| Behavior | Rule | Requirement |
+| --- | --- | --- |
+| `no-return` | `FFN001` | Do not return a meaningful value. |
+| `returns-bool` | `FFN002` | Declare `bool`, `TypeGuard`, or `TypeIs`. |
+| `returns-value` | `FFN003` | Do not explicitly declare a no-value result such as `None`. |
+| `returns-iterator` | `FFN004` | Contain an owned `yield` or declare an iterator or generator result. |
+
+Fensu ships these contracts by default:
+
+```toml
+[contracts]
+"validate_*" = "no-return"
+"enforce_*" = "no-return"
+"is_*" = "returns-bool"
+"has_*" = "returns-bool"
+"can_*" = "returns-bool"
+"supports_*" = "returns-bool"
+"get_*" = "returns-value"
+"to_*" = "returns-value"
+"as_*" = "returns-value"
+"iter_*" = "returns-iterator"
+```
+
+Add more globs for your project's conventions:
+
+```toml
+[contracts]
+"write_*" = "no-return"
+"yield_*" = "returns-iterator"
+```
+
+Contracts use closed behavior categories rather than per-name lists, which keeps
+the configuration from decaying into an unmanageable list of special cases. If a
+function matches patterns with different behaviors, evaluation fails with a
+configuration error naming the function, file, and conflicting patterns. For a
+behavior outside these four categories, write a [custom rule](/concepts/custom-rules).
+
+## Native rule packs
+
+`rule_packs` activates Fensu-shipped Rust policies by registered name. Fensu
+currently ships `dagster`, `typescript`, and `sveltekit` packs:
+
+```toml
+rule_packs = ["dagster"]
+select = ["FPDG"]
+```
+
+```toml
+rule_packs = ["typescript"]
+select = ["FPTS"]
+```
+
+```toml
+rule_packs = ["sveltekit"]
+select = ["FPSK"]
+```
+
+The Dagster pack is a standalone architecture policy containing native framework
+rules and transparent aliases of retained core rules. See the
+[Dagster rule pack](/concepts/rule-packs/dagster) for its repository shape, codes,
+alias behavior, and autoload option.
+The TypeScript pack contains framework-independent web policy. The SvelteKit pack
+is standalone and uses direct aliases of applicable TypeScript rules so users
+activate and select only `FPSK`.
+
+## Custom rule loading
+
+`rule_paths` and `rule_modules` tell Fensu where to find custom rules.
+
+```toml
+tooling = ["scripts"]
+rule_paths = ["scripts/fensu_policy/rules"]
+rule_modules = ["company_architecture.rules"]
+select = ["FF", "XAC001"]
+```
+
+- `rule_paths` entries are directories (or files) of `.py` modules containing
+  `@rule`-decorated functions. Each file is loaded under an isolated synthetic
+  module name so it cannot pollute your import namespace.
+- `rule_modules` entries are importable dotted module names, loaded with a normal
+  import. Their Python source must be inside the repository so diagnostics, test
+  coverage, and cache identity have a stable owner.
+
+Loaded custom rules merge with core rules and activated native packs into one
+catalogue, so they appear in `fensu check`, [`fensu rule`](/cli/rule), and
+[`fensu skills`](/cli/skills) once configured. See
+[Custom rules](/concepts/custom-rules) for the authoring API.
+
+## Rule options
+
+Rules may declare typed options with defaults or required values. Repositories write
+only overrides, keyed by exact rule code:
+
+```toml
+[rule_options.XAC001]
+allowed_names = ["alpha", "beta"]
+strict = true
+```
+
+Fensu discovers the complete core, activated pack, and custom catalogue before
+validating these tables. Unknown rule codes, option-free rules, unknown names,
+wrong scalar or list types, missing required options, and failed choices or bounds
+stop the run before evaluation. Options on unselected rules are validated too, so
+dormant typos cannot remain hidden.
+
+The rule's **default** remains in source. A TOML value is an **override**. The
+**current value** is the override when present and otherwise the default. Lists are
+passed to rules as immutable tuples. Rule options do not replace thresholds,
+contracts, exact exceptions, path-scoped ignores, or threshold overrides.
+
+## Cache
+
+The `[cache]` table (`[tool.fensu.cache]` in `pyproject.toml`) controls the
+persistent result cache used by [`fensu check`](/cli/check#caching). It takes two
+boolean keys:
+
+| Key | Type | Default | Purpose |
+| --- | --- | --- | --- |
+| `enabled` | boolean | `true` | Persist and reuse per-file results between runs. |
+| `require_cacheable` | boolean | `false` | Verify evaluated custom rules use only tracked inputs so their results can be cached safely. |
+
+```toml
+[cache]
+enabled = true
+require_cacheable = true
+```
+
+The `--cache` and `--no-cache` flags on `fensu check` override these keys for one
+run. See [Custom rules](/concepts/custom-rules#keeping-custom-rules-cacheable) for
+what `require_cacheable` demands of your rule files.
+
+## Skills
+
+The `[skills]` table sets the generated project identity used in paths such as
+`.agents/skills/fensu-acme-api/SKILL.md`:
+
+```toml
+[skills]
+name = "acme-api"
+```
+
+When omitted, Fensu uses the nearest `[project].name` from `pyproject.toml`, then
+the configuration directory name. See [`fensu skills`](/cli/skills) for
+normalization, installation roots, and freshness checks.
+
+## The self-hosted example
+
+Fensu checks itself with this configuration:
+
+```toml
+roots = ["src/fensu"]
+tests = ["tests"]
+tooling = ["scripts"]
+select = ["FF"]
+
+[thresholds]
+max_positional_args = 1
+```

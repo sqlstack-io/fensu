@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Fensu · Keep your codebase in shape</title>
+    <meta name="description" content="Make repository conventions executable. Fensu enforces boundaries, module roles and function shape across Python, Rust, TypeScript, JavaScript and Svelte.">
+    <meta name="color-scheme" content="light dark">
+    <link rel="canonical" href="__SITE_URL__/">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="Fensu">
+    <meta property="og:title" content="Fensu · Keep your codebase in shape">
+    <meta property="og:description" content="Turn review comments into rules. Executable architecture for your repository.">
+    <meta property="og:url" content="__SITE_URL__/">
+    <meta property="og:image" content="__SITE_URL__/assets/og-fensu.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="Fensu. Keep your codebase in shape. Executable architecture rules for Python, Rust, TypeScript, JavaScript and Svelte.">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:image" content="__SITE_URL__/assets/og-fensu.png">
+    <link rel="icon" href="assets/icon-light.png" type="image/png">
+    <link rel="icon" href="assets/icon-dark.png" type="image/png" media="(prefers-color-scheme: dark)">
+    <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+    <link rel="preload" href="fonts/inter-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+    <script>
+      (() => {
+        let theme;
+        try { theme = localStorage.getItem('starlight-theme'); } catch {}
+        document.documentElement.dataset.theme = theme === 'light' || theme === 'dark'
+          ? theme : (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+      })();
+    </script>
+    <link rel="stylesheet" href="styles.css">
+    <script src="site.js" defer></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <svg class="icon-definitions" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+      <symbol id="folder" viewBox="0 0 24 24"><path d="M3 5h6l2 3h10v12H3z"/></symbol>
+      <symbol id="file" viewBox="0 0 24 24"><path d="M5 2h9l5 5v15H5zM14 2v6h5"/></symbol>
+      <symbol id="layers" viewBox="0 0 24 24"><path d="m2 8 10-5 10 5-10 5zM2 12l10 5 10-5M2 16l10 5 10-5"/></symbol>
+      <symbol id="cube" viewBox="0 0 24 24"><path d="m12 2 9 5v10l-9 5-9-5V7zM3 7l9 5 9-5M12 12v10"/></symbol>
+      <symbol id="shape" viewBox="0 0 24 24"><rect x="5" y="2" width="14" height="20" rx="1"/><path d="M8 7h8M8 11h8M8 15h5"/></symbol>
+    </svg>
+    <header class="site-header">
+      <div class="wrap header-inner">
+        <a class="brand" href="./" aria-label="Fensu home">
+          <img class="logo-light" src="assets/logo-light.png" alt="Fensu" width="148" height="30">
+          <img class="logo-dark" src="assets/logo-dark.png" alt="Fensu" width="148" height="30">
+        </a>
+        <nav aria-label="Main">
+          <a class="hide-sm" href="#how">How it works</a>
+          <a href="/docs/">Docs</a>
+          <a class="hide-sm" href="/docs/quickstart/">Quickstart</a>
+          <a class="nav-icon" href="https://github.com/sqlstack-io/fensu" aria-label="Fensu on GitHub">
+            <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+          </a>
+          <button class="theme-toggle" type="button" aria-label="Switch to dark theme" aria-pressed="false" hidden>
+            <svg class="icon-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+            <svg class="icon-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+          </button>
+        </nav>
+      </div>
+    </header>
+    <main id="main">
+      <div class="wrap">
+        <section class="hero" aria-labelledby="hero-title">
+          <div class="hero-copy">
+            <p class="eyebrow">Executable architecture rules</p>
+            <h1 id="hero-title"><span>Keep your</span> codebase in shape.</h1>
+            <p class="lede">Enforce boundaries, module roles and function shape. Make your repository conventions executable.</p>
+            <div class="actions">
+              <div class="command install"><code><span aria-hidden="true">$ </span>pip install fensu</code><button type="button" class="copy" data-copy="pip install fensu" aria-label="Copy install command" hidden>Copy</button></div>
+              <a class="button primary" href="/docs/quickstart/">Get started</a>
+              <a class="button" href="/docs/">Read the docs</a>
+            </div>
+          </div>
+          <figure class="architecture">
+            <p class="architecture-label">Structure is a contract</p>
+            <div class="tree-root"><svg aria-hidden="true"><use href="#folder"/></svg><code>config/</code></div>
+            <ul class="tree" aria-label="Files and directories inside config">
+              <li><svg aria-hidden="true"><use href="#folder"/></svg><code>main/</code></li>
+              <li><svg aria-hidden="true"><use href="#folder"/></svg><code>_helpers/</code></li>
+              <li><svg aria-hidden="true"><use href="#file"/></svg><code>models.py</code></li>
+              <li><svg aria-hidden="true"><use href="#file"/></svg><code>types.py</code></li>
+            </ul>
+            <figcaption>A Python domain, with explicit roles</figcaption>
+          </figure>
+        </section>
+        <ul class="languages" aria-label="Supported languages"><li>Python</li><li>Rust</li><li>TypeScript</li><li>JavaScript</li><li>Svelte</li></ul>
+        <section class="benefits" aria-labelledby="benefits-title">
+          <h2 id="benefits-title">Turn review comments into rules.</h2>
+          <div class="benefit-grid">
+            <article class="benefit"><div class="feature-icon"><svg aria-hidden="true"><use href="#layers"/></svg></div><div><h3>Boundaries</h3><p>Keep imports inside the layers you choose.</p></div></article>
+            <article class="benefit"><div class="feature-icon"><svg aria-hidden="true"><use href="#cube"/></svg></div><div><h3>Module roles</h3><p>Keep models, types and orchestration in their assigned modules.</p></div></article>
+            <article class="benefit"><div class="feature-icon"><svg aria-hidden="true"><use href="#shape"/></svg></div><div><h3>Function shape</h3><p>Keep orchestrators small and make dataflow explicit.</p></div></article>
+          </div>
+        </section>
+        <section id="how" class="workflow" aria-labelledby="workflow-title">
+          <h2 id="workflow-title">Adopt. Enforce. Understand.</h2>
+          <p class="section-intro">Start with the defaults. Make the rules your own.</p>
+          <ol class="steps">
+            <li><span class="step-number" aria-hidden="true">01</span><h3>Start with a structure</h3><div class="command"><code><span aria-hidden="true">$ </span>fensu init --yes</code><button class="copy" type="button" data-copy="fensu init --yes" aria-label="Copy initialization command" hidden>Copy</button></div><p>Adopt the defaults, then adapt the rules.</p><a class="detail-link" href="/docs/cli/init/">Initialize a repository <span aria-hidden="true">→</span></a></li>
+            <li><span class="step-number" aria-hidden="true">02</span><h3>Keep it consistent</h3><div class="command"><code><span aria-hidden="true">$ </span>fensu check</code><button class="copy" type="button" data-copy="fensu check" aria-label="Copy check command" hidden>Copy</button></div><p>Run the configured rules before changes land.</p><a class="detail-link" href="/docs/cli/check/">Read your first findings <span aria-hidden="true">→</span></a></li>
+            <li><span class="step-number" aria-hidden="true">03</span><h3>See the call flow</h3><div class="command"><code><span aria-hidden="true">$ </span>fensu map run_plan --depth 3</code><button class="copy" type="button" data-copy="fensu map run_plan --depth 3" aria-label="Copy Python call-map command" hidden>Copy</button></div><p>Trace proven Python calls. Mark unresolved seams.</p><a class="detail-link" href="/docs/cli/map/">Explore Python call maps <span aria-hidden="true">→</span></a></li>
+          </ol>
+        </section>
+        <section class="more" aria-labelledby="more-title">
+          <h2 id="more-title">Keep the rules close to the code.</h2>
+          <div class="more-grid">
+            <article><h3>Review duplicated code</h3><p>Ranked clusters across supported languages. Advisory, not a failing gate.</p><div class="command"><code><span aria-hidden="true">$ </span>fensu dupes --since origin/main</code><button class="copy" type="button" data-copy="fensu dupes --since origin/main" aria-label="Copy duplicate-detection command" hidden>Copy</button></div><a class="detail-link" href="/docs/cli/dupes/">Review duplicated code <span aria-hidden="true">→</span></a></article>
+            <article><h3>Give agents the same rules</h3><p>Generate guidance from your active ruleset.</p><div class="command"><code><span aria-hidden="true">$ </span>fensu skills</code><button class="copy" type="button" data-copy="fensu skills" aria-label="Copy agent-guidance command" hidden>Copy</button></div><a class="detail-link" href="/docs/cli/skills/">Generate agent guidance <span aria-hidden="true">→</span></a></article>
+          </div>
+          <p class="custom-rules"><a href="/docs/concepts/custom-rules/">Adapt the defaults. Add custom rules in Python. <span aria-hidden="true">→</span></a></p>
+        </section>
+        <section class="closing" aria-labelledby="closing-title"><h2 id="closing-title">Make architecture part of every change.</h2><div class="actions"><a class="button primary" href="/docs/quickstart/">Get started</a><a class="button" href="/docs/">Read the docs</a></div><p>Open source · Apache-2.0 · Python 3.12+</p></section>
+      </div>
+    </main>
+    <footer class="wrap"><span>Fensu</span><nav aria-label="Footer"><a href="/docs/">Docs</a><a href="https://github.com/sqlstack-io/fensu">GitHub</a><a href="https://pypi.org/project/fensu/">PyPI</a></nav></footer>
+    <p class="sr-only" role="status" id="copy-status"></p>
+  </body>
+</html>

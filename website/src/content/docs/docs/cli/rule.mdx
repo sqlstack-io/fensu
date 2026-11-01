@@ -1,0 +1,135 @@
+---
+title: fensu rule
+description: "Inspect the full metadata for a single core, native-pack, or custom rule code."
+---
+
+`fensu rule` prints the complete metadata for one rule: its family, severity,
+whether it is on by default, its source, and its full message and remediation. Use
+it to understand a code you saw in [`fensu check`](/cli/check) output, or to read
+what a rule claims before you enable or disable it.
+
+```bash
+fensu rule CODE [--color MODE] [--target TARGET]
+```
+
+## Usage
+
+```bash
+fensu rule FFS131
+```
+
+```text
+FFS131 no-complex-comprehensions
+Family: shape
+Severity: error
+Kind: core
+Enabled by default: yes
+Source: core
+Message: nested or multi-generator comprehensions hide control flow and data shapes
+Remediation: Extract a named helper when the transformation has a coherent purpose. For one-off
+             local logic, use simple statements with named intermediate values instead of nested
+             comprehension control flow.
+```
+
+The lookup is **case-insensitive**, so `fensu rule ffs131` works too.
+When multiple analyzer targets are configured, select the catalogue and policy
+context explicitly:
+
+```bash
+fensu rule FPSKA001 --target web
+```
+
+## Fields
+
+| Field | Meaning |
+| --- | --- |
+| Header | The code and slug. |
+| Family | The rule's [family](/concepts/rule-families). |
+| Severity | `error` or `warning`. |
+| Kind | `core` for the default policy, `pack` for an activated native pack, or `custom` for your own rule. |
+| Pack | The owning native pack, or `None`. |
+| Alias | The canonical core implementation used by a transparent pack alias, or `None`. |
+| Enabled by default | Whether the rule runs without being named explicitly. |
+| Source | `core`, or the file or module a custom rule was loaded from. |
+| Message | The one-sentence statement of the violated contract. |
+| Remediation | The normal correction, or `None provided.` if the rule sets none. |
+| Options | Declared types, defaults, current values, descriptions, choices, and bounds. |
+
+`Severity` is catalogue metadata declared by the rule. Configuring a rule in
+`warn` assigns it to the project's advisory tier without changing that metadata.
+Use [`fensu check --warn`](/cli/check#warnings) to see the effective tier in a run.
+
+When the queried code matches configured exact exceptions or path-scoped
+`rule_ignores`, `fensu rule` also prints those active policy declarations and their
+reasons.
+
+## Custom and configured rules
+
+`fensu rule` reads the whole catalogue for the current repository, so it resolves
+[custom rules](/concepts/custom-rules) once they are configured and
+[native rule packs](/concepts/rule-packs) once activated. It can inspect rules that
+are ignored or off by default. A custom rule shows its source path:
+
+```bash
+fensu rule XAC001
+```
+
+```text
+XAC001 no-acme-global
+Family: custom
+Severity: error
+Kind: custom
+Enabled by default: yes
+Source: scripts/fensu_policy/rules/boundaries.py
+Message: ACME_GLOBAL hides ownership
+Remediation: Move the value to the module that owns and produces it.
+
+Options:
+  allowed_names
+    Type: list[string]
+    Required: false
+    Default: []
+    Current value: ["alpha", "beta"]
+    Description: Names permitted by this policy.
+    Choices: null
+    Minimum: None
+    Maximum: None
+    Minimum items: None
+```
+
+For an option without a default, `Default` is `required`. Defaults come from rule
+source; current values use a TOML override when present. `fensu rule` never writes
+either value back to configuration.
+
+An activated pack rule shows its pack and any canonical alias target:
+
+```text
+FPDGA001 parameter-annotation
+Family: annotations
+Severity: error
+Kind: pack
+Pack: dagster
+Alias: FFA001
+Enabled by default: yes
+Source: core
+```
+
+## Options
+
+| Option | Values | Default | Purpose |
+| --- | --- | --- | --- |
+| `--color` | `auto`, `always`, `never` | `auto` | ANSI color behavior. Respects `NO_COLOR`. |
+| `--target` | configured target name | automatic for one target | Select the analyzer catalogue and target-local policy. |
+
+## Exit codes
+
+| Code | Meaning |
+| --- | --- |
+| `0` | The rule was found and printed. |
+| `2` | The code is not a known rule. |
+
+An unknown code reports:
+
+```text
+Unknown rule code: NOPE
+```

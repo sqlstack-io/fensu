@@ -1,0 +1,408 @@
+---
+title: Architecture Model
+description: "The scopes, roles, and default module layout that Fensu enforces."
+---
+
+Fensu does not check every file the same way. It first sorts your repository into
+**scopes**, then applies each scope's rules using a fixed vocabulary of **roles**
+and a **domain layout**. This page describes that model, which is the shared ground
+every rule family stands on.
+
+<Note>
+  This page describes Fensu's **default** model. Every part of it is a rule you can
+  turn off with [`ignore`](/concepts/configuration#selection), narrow with
+  [scopes](#scopes), or replace with a [custom rule](/concepts/custom-rules). The
+  layout below is the shipped starting point, not a fixed requirement.
+</Note>
+
+## Scopes
+
+A scope is a set of paths that receives a particular policy. Fensu has three, each
+declared in configuration:
+
+| Scope | Config key | Policy |
+| --- | --- | --- |
+| Product | `roots` | Full structural rules: layers, roles, shape, naming, hygiene, and annotations. |
+| Tests | `tests` | Test-convention rules and annotation rules. Not the product structural rules. |
+| Tooling | `tooling` | The same structural families as product roots, at one less nesting level. |
+
+The scanned set is the union of these three. A file that is not in any scope, such
+as a top-level `setup.py` or `noxfile.py`, is simply skipped. There is no "scanned
+but unclassified" state.
+
+- `roots` is **required** and its entries must not be nested inside one another, so
+  every scanned file belongs to exactly one root. Independent package trees in a
+  monorepo are expressed as multiple roots.
+- `tests` defaults to `["tests"]`.
+- `tooling` defaults to empty.
+
+A file's scan scope is computed from its matching product root. Its domain
+position is computed from the most-specific matching **ownership root**. By
+default those are the same in Python: for a root of `src/my_package`, the file
+`src/my_package/config/main/load.py` has ownership-relative parts
+`("config", "main", "load.py")`, from which Fensu derives its domain, subdomain,
+and role.
+
+## Ownership roots
+
+An ownership root is the directory immediately above a set of domains. It lets
+the physical repository tree contain structural groups without treating those
+groups as domain owners.
+
+```text
+src/my_package/                 # product root
+└── sources/                    # structural group
+    └── region_a/               # ownership root
+        ├── orders/             # domain
+        │   └── main/
+        └── partners/           # domain
+            └── importing/      # subdomain
+                └── main/
+```
+
+With `ownership_roots = ["src/my_package/sources/*"]`, `orders` and `partners`
+are domains and `importing` is a subdomain. `sources` and `region_a` remain
+structural: they cannot contain role files or role directories directly.
+
+Ownership roots may be declared at different depths. The deepest concrete match
+wins for each file, allowing one target to model several existing layout regions
+without inventing placeholder domains. Mirrored tests use the same production
+ownership boundary. See [Ownership roots](/concepts/configuration#ownership-roots)
+for patterns, analyzer defaults, and validation.
+
+## Roles
+
+A role is what a file or directory is *for*. Fensu recognizes a fixed set of role
+names and enforces what each may contain and where it may live.
+
+| Role | Form | Holds |
+| --- | --- | --- |
+| `main/` | Package | Published entry surfaces and orchestrator functions. |
+| `_helpers/` | Package | Phase functions supporting the orchestrators. |
+| `classes/` | Package | One class per module. |
+| `models.py` | File | Data model declarations (frozen dataclasses). |
+| `types.py` | File | Type declarations and aliases. |
+| `constants.py` | File | Constant declarations. |
+| `exceptions.py` | File | Exception class declarations. |
+
+The underscore in `_helpers/` means private to its owner, not unimportable. A
+`main/` entry importing its own `_helpers/` implementation is the intended pattern;
+another owner reaching into that package is not. The semantic role name remains
+`helpers` in configuration, including `[roles.helpers]` and
+`max_helpers_container_modules`.
+
+These roles are Fensu's opinion and are fixed. A role file may hold only what its
+role permits: a declaration that belongs in `models.py` may not live elsewhere, and
+`models.py` may not hold unrelated code.
+
+Ownership follows the role boundary: everything before a module's first role
+segment is its **owner**. Imports within one owner are free (`main/` calling its
+own `_helpers/`, helpers calling each other, anything using the owner's
+`classes/`). Imports **across** owners must enter through the owner's public
+surface: its role files or role packages (`models`, `types`, `constants`,
+`exceptions`, `classes`) or its `main/` entry modules. Another owner's `_helpers/`
+internals are never importable. For an importable path with no role segment,
+Fensu infers the containing package as its owner (or the package itself for an
+`__init__.py`); direct non-role modules remain internal rather than becoming
+accidental public surfaces.
+
+<Note>
+  Role names are fixed today. User-defined role taxonomies are a planned future
+  addition, not current behavior.
+</Note>
+
+## Domains: leaf or branch
+
+Fensu's default layout for product code is **domains built from roles**, not a
+flat top level.
+
+- An ownership root (by default the package root, for example
+  `src/my_package/`) holds only its package protocol modules, deliberate public
+  facades where supported, and **domain** packages. No role files live at the
+  ownership root.
+- A **leaf domain** holds the actual work directly: `main/`, `_helpers/`,
+  `classes/`, and the role files (`models.py`, `types.py`, `constants.py`,
+  `exceptions.py`).
+- A **branch domain** holds only named **subdomains**, each of which is itself
+  built from the roles.
+
+A domain is one or the other, never both: mixing direct role content with named
+subdomains is a fault (`FFR306`). A cohesive single-purpose domain is simply a
+leaf; it splits into named subdomains only when it grows genuinely independent
+parts. There is no mandatory subdomain level and no conventional `core/`
+ceremony. Loose non-role modules directly at the domain level fault too
+(`FFR307`).
+
+```text
+src/my_package/
+├── __init__.py                 # public re-export surface only
+├── config/                     # a leaf domain: roles live directly here
+│   ├── models.py
+│   ├── types.py
+│   ├── constants.py
+│   ├── exceptions.py
+│   ├── main/
+│   │   └── load_config.py      # published orchestrator
+│   └── _helpers/
+│       ├── discovery.py
+│       ├── parse.py
+│       └── validate.py
+└── billing/                    # a branch domain: named subdomains only
+    ├── invoices/
+    │   ├── main/
+    │   ├── _helpers/
+    │   └── models.py
+    └── payments/
+        └── ...
+```
+
+### Vocabulary lives with its owner
+
+Fensu has no neutral "shared" or "utils" bucket. Every type lives in the role file
+of the domain or subdomain that produces it, and other packages import it from
+there. A type that many places use is not ownerless; it has one producer, and that
+producer publishes it. If you cannot name the owner, that is a signal to look
+harder, not to create a junk drawer.
+
+### Shared domain prefixes
+
+When sibling domains repeatedly start with the same first underscore-separated
+token, that token is already acting like an owner. FFR308 asks you to make the
+ownership explicit:
+
+<CodeGroup>
+```text Before
+billing_annotation_export/
+billing_annotation_validation/
+billing_events/
+```
+
+```text After
+billing/
+├── annotation_export/
+├── annotation_validation/
+└── events/
+```
+</CodeGroup>
+
+The rule groups by the first token, not the longest shared string. For example,
+`annotation_export/`, `annotation_sanitization/`, and `annotation_validation/`
+belong under `annotation/`.
+
+The rule applies when at least `min_shared_domain_prefix_packages` sibling domains
+share a prefix. The default is `2`; set it to `0` to disable the check. Directories
+without Python files do not count.
+
+## Root public facades
+
+A Python package may expose a deliberately small external API through a direct
+module at its runtime root, such as `src/my_package/orders_api.py`. Fensu recognizes
+this as a public facade only from its static shape; there is no naming allowlist
+or configuration switch.
+
+```python
+# src/my_package/orders_api.py
+from my_package.orders.models import Order
+
+__all__ = ("Order",)
+```
+
+A recognized facade has exactly one non-empty, duplicate-free, literal `__all__`.
+Every exported name must be backed by an import from within the same package or
+one of these bounded adapters around such an import:
+
+- a direct alias or re-export;
+- a one-statement forwarding function, including async forwarding;
+- an overload declaration paired with a supported implementation;
+- a constrained context-manager wrapper; or
+- a trivial subclass of one imported base.
+
+The module may contain imports and a docstring, but no mutable default, computed
+annotation, import-time call, arbitrary statement, or locally implemented
+behavior. If the complete file does not prove that shape, it remains an ordinary
+direct module and receives the normal layout or re-export diagnostics.
+
+Recognition changes three rules deliberately:
+
+- `FFR307` allows the otherwise-disallowed direct root module.
+- `FFR403` allows its deliberate re-export shape.
+- `FFR310` keeps the dependency direction one-way: product runtime modules must
+  import the owning domain directly, not route inward through the facade. Tests,
+  tooling, and external consumers may import the facade.
+
+This makes a facade an outward compatibility boundary rather than an internal
+service locator. Root `__init__.py` remains the separately checked package
+surface described by `FFR406`.
+
+## Containers: flat or grouped
+
+`main/` and `_helpers/` are **containers**. A container has one of two shapes:
+
+- **Flat**: modules sit directly in the package, up to a cap
+  (`max_helpers_container_modules`, default 10, for `_helpers/`;
+  `max_main_container_modules`, default 20, for `main/`).
+- **Grouped**: every module is grouped into one level of concern subfolders
+  (**buckets**), each bucket holding modules up to the same cap.
+
+Mixing the two shapes in one container is a fault (`FFR301` for `_helpers/`,
+`FFR302` for `main/`): once one bucket exists, direct modules may not sit beside
+it. Bucket nesting is capped by `max_role_depth` (default 1), so a bucket does not
+grow buckets of its own. Bucket names must name a concern: a role name (`main`,
+`helpers`, `classes`, ...) as a bucket name faults under the same layout rules,
+and generic names (`util`, `common`, `misc`, ...) fault under `FFR204`.
+
+Grouping is pure navigation, not new ownership: a grouped `main/` or `_helpers/`
+tree still belongs to one owner, and modules inside it keep their role's rules.
+In particular, the [entry-module contract](#entry-modules) applies to every
+module under `main/`, bucketed or not.
+
+## Entry modules
+
+A module under a `main/` package (directly, or inside a bucket) is an **entry
+module**. Its shape rule (`FFR401`) constrains only the module's **top level**:
+
+- exactly one **public** function (the entry point);
+- at most **two private** functions in that file;
+- top level contains **only** imports and function definitions, nothing else.
+
+That is the whole rule. It is a limit on how many functions live *in the entry file
+itself*, not on what those functions may do.
+
+The public entry function is free to import and call as much as it needs: helper
+phases from `_helpers/`, classes from `classes/`, other packages' published
+surfaces, and anything else it has legitimate access to. The two-private-function
+cap is not a cap on collaborators; it just says an entry module should not grow its
+own pile of local glue. When you need more than a couple of local helpers, move them
+into `_helpers/` and call them from there.
+
+```python
+# config/main/load_config.py  (an entry module)
+from __future__ import annotations
+
+from pathlib import Path
+
+from fensu.config._helpers.defaults import build_config
+from fensu.config._helpers.discovery import locate_config
+from fensu.config._helpers.parse import parse_config_source
+from fensu.config._helpers.validate import validate_config
+from fensu.config.models import Config, ConfigSource
+
+
+def load_config(start: Path | None = None) -> Config:
+    """The one public entry point; it may call as many helpers as it needs."""
+    source: ConfigSource = locate_config(start)
+    raw_config = parse_config_source(source)
+    validate_config(raw_config)
+    return build_config(raw_config)
+```
+
+Here `load_config` calls four helper functions and several imported types. That is
+entirely fine: it is one public function with zero private ones, and all the real
+work lives in `_helpers/`. The rule would only fire if the file grew a second public
+function, a third private function, or a top-level statement that is not an import
+or a `def`.
+
+## Default thresholds
+
+Several shape rules are governed by numeric thresholds. Fensu ships these defaults,
+all overridable in configuration:
+
+| Threshold | Default | Applies to |
+| --- | --- | --- |
+| `max_statements` | 40 | Statements in a `main/` orchestrator function. |
+| `max_distinct_calls` | 20 | Distinct callees in a `main/` function. |
+| `max_locals` | 20 | Assigned locals in a `main/` function. |
+| `max_statements_global` | 70 | Statements in any function (loose global floor). |
+| `max_arguments` | 10 | Arguments to any function. |
+| `max_positional_args` | 1 | Positional (non keyword-only) parameters before `*` is required. |
+| `max_file_lines` | 2000 | Lines in a source file. |
+| `max_helpers_container_modules` | 10 | Modules in a `_helpers/` container: the flat package, or each bucket. |
+| `max_main_container_modules` | 20 | Entry modules in a `main/` container: the flat package, or each bucket. |
+| `max_role_depth` | 1 | Bucket nesting depth inside a grouped `main/` or `_helpers/` package. |
+| `max_script_entrypoint_lines` | 80 | Lines in a direct tooling script entrypoint. |
+| `min_shared_domain_prefix_packages` | 2 | Sibling domains sharing a first-token owner prefix before FFR308 faults. `0` disables it. |
+| `min_custom_rule_test_cases` | 1 | Statically visible harness cases required per configured custom rule. `0` disables it. |
+
+These are measured values from a large, real, self-hosted codebase, presented as
+documented defaults rather than magic numbers. See
+[Configuration](/concepts/configuration) for how to override them globally, per
+role, or [per path](/concepts/configuration#path-scoped-threshold-overrides).
+
+## Tooling layout
+
+Tooling code (declared in `tooling`) follows the same roles as product code but at
+one less nesting level, because dev scripts rarely need full domain depth.
+
+- Direct `scripts/*.py` files are thin command adapters: one public `main()`, an
+  optional `_parse_args()` or `_build_parser()`, imports, the
+  `if __name__ == "__main__"` guard, and delegation to an imported `main/` entry.
+  `scripts/__init__.py` is exempt.
+- A tool implementation uses one ownership level then a role:
+
+```text
+scripts/
+├── fetch_data.py               # thin command adapter
+└── data_snapshot/
+    ├── main/
+    ├── _helpers/
+    ├── classes/
+    ├── models.py
+    ├── types.py
+    ├── constants.py
+    └── exceptions.py
+```
+
+The role directories permitted directly under a tool are `main/`, `_helpers/`,
+`classes/`, and `rules/`. A `rules/` module is the home for custom rules; see
+[Custom rules](/concepts/custom-rules).
+
+## Test layout
+
+The tests scope (declared in `tests`) has its own shape, so a test's location and
+form tell you what it exercises and how to read it.
+
+- **Mirrored.** Tests live under a scope of `unit/`, `integration/`, or `e2e/`, then
+  mirror the source path they exercise. A test for `src/my_package/config/main/`
+  lives at `tests/unit/src/my_package/config/main/`. Set
+  [`test_scopes`](/concepts/configuration#test-scopes) if your project uses a
+  different set.
+- **Named for behavior.** Test files start with `test_`, and each test is
+  `test_given_<state>_when_<action>_then_<outcome>`, so the precondition, action, and
+  expectation are readable without opening the body.
+- **Dataclass-backed cases.** Tests parametrize over a local frozen dataclass rather
+  than tuples or dicts. Each case carries a `description` and at least one
+  `expected_` field, and the test asserts against that field. Case ids come from
+  `lambda case: case.description`, so a failure names the behavior.
+
+```text
+tests/unit/src/my_package/config/main/
+├── _test_types.py              # local test-case dataclasses
+└── test_load_config.py         # tests parametrized over those cases
+```
+
+```python
+# _test_types.py
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True)
+class LoadConfigCase:
+    description: str
+    source: str
+    expected_root: str
+```
+
+Case dataclasses live in a sibling `_test_types.py`, and reusable test helpers live
+in a local `helpers.py`. See [FFT: Tests](/concepts/rule-families#fft-tests) for the
+rules that enforce this layout.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Configuration" icon="gear" href="/concepts/configuration">
+    Declare scopes, override thresholds, and set contracts.
+  </Card>
+  <Card title="Rule families" icon="list-check" href="/concepts/rule-families">
+    The rules that enforce this model.
+  </Card>
+</CardGroup>

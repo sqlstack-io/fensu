@@ -1,0 +1,68 @@
+---
+title: Caching
+description: "How Fensu's persistent result cache works: what invalidates it, why it can never change diagnostics, and how custom rules stay cacheable."
+---
+
+`fensu check` keeps a persistent result cache, on by default, so warm runs skip
+re-evaluating files whose inputs have not changed. On a large repository this
+turns a multi-second check into a fast one without changing a single output byte.
+
+The cache lives in a SQLite database at `.fensu/cache/v2.db` in the repository
+root. Add `.fensu/cache/` to your `.gitignore`; do not ignore the complete
+`.fensu/` namespace. Older schema files are not reused and can be deleted.
+
+## The contract
+
+The cache is a pure optimization with one contract: **a cached run produces
+byte-identical output to an uncached run**. Two properties enforce it.
+
+**Reuse requires proof.** A file's cached result is reused only when everything
+that produced it is provably unchanged:
+
+- the file's own content hash,
+- the answer to every cross-file question evaluation asked while checking it
+  (does this path exist, what does this directory contain, what is in this
+  imported file), re-asked and compared on every run,
+- the configuration, the selected ruleset, and the Fensu implementation
+  itself, all content-hashed into one cache identity.
+
+There is no dependency graph to maintain and no timestamp heuristics. Each
+result records the questions its rules actually asked; reuse replays those
+questions against the current filesystem. A file that newly appears or
+disappears changes an answer, so it invalidates exactly the results that
+depended on it. Editing config, a rule, or upgrading Fensu changes the cache
+identity, so the whole cache is rebuilt.
+
+**Failure degrades, never corrupts.** An unreadable, corrupt, or foreign cache
+entry is a cache miss: the file is recomputed fresh. A broken cache database
+degrades the run to fully uncached with a warning on stderr telling you to
+delete `.fensu/cache` if it persists. No cache failure mode can change an
+exit code or a diagnostic.
+
+## Configuration and flags
+
+The [`[cache]` table](/concepts/configuration#cache) has two keys: `enabled`
+(default `true`) and `require_cacheable` (default `false`). On `fensu check`,
+`--cache` and `--no-cache` override the config for one run, and `--cache-stats`
+prints hit/miss/invalidation/write counts to stderr, or
+`Cache: disabled (<reason>)` when caching was unavailable. See
+[`fensu check`](/cli/check#caching) for the flag reference.
+
+## Custom rules
+
+A custom rule body is arbitrary Python, so it cannot be assumed to only read
+tracked inputs. By default, selecting any custom rule disables caching for the
+whole run. Setting `require_cacheable = true` verifies every selected custom
+rule at startup and keeps such runs cached; see
+[Custom rules](/concepts/custom-rules#keeping-custom-rules-cacheable) for the
+tracked-input contract that verification enforces.
+
+Typed rule-option current values and declaration schemas are cache inputs. Changing
+an override, default, type, choice, or bound invalidates reusable findings;
+`ctx.option()` reads only these validated immutable values.
+
+## When something looks wrong
+
+`fensu check --no-cache` runs with the cache fully bypassed. If cached and
+uncached output ever differ, that is a Fensu bug; please report it. Deleting
+`.fensu/cache/` is always safe. The next run rebuilds it.

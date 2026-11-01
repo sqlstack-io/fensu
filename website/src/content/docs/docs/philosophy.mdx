@@ -1,0 +1,87 @@
+---
+title: Philosophy
+description: "Why Fensu is strict by default and how deliberate deviation works."
+---
+
+Fensu is opinionated on purpose. A few decisions explain most of how it behaves.
+
+## Strict by default
+
+Fensu ships a coherent default architecture, not a blank rule framework. Defaults
+are strict wherever the tool can make an honest, deterministic claim.
+
+The point is that you should not have to stop and decide where code goes on every
+change: follow the rules and the placement is already decided. The moment you want
+to deviate is the signal that something actually needs a decision, and Fensu makes
+that decision visible rather than silent.
+
+It is the stance a type system or a borrow checker takes: correct from the ground
+state, with escapes that are explicit rather than ambient.
+
+## How to deviate
+
+When a rule does not fit, you have three escapes:
+
+1. **Disable it** with `ignore` in config.
+2. **Scope it off** by adjusting `roots`, `tests`, or `tooling`.
+3. **Replace it** with a [custom rule](/concepts/custom-rules).
+
+All three live in `fensu.toml`, never in your business-logic files.
+
+### No inline suppression
+
+Fensu has **no `# fensu: allow` comment**, on purpose.
+
+An inline suppression hides in a large diff, passes CI, and reads like any other
+comment. That is the `# type: ignore` failure mode: the guard drops quietly and
+drift compounds one line at a time. Editing `fensu.toml` is different: a config
+change is something a reviewer stops to look at, so no deviation slips by unseen.
+
+<Note>
+  Fensu does not let comments carry meaning that the tooling depends on (see the
+  hygiene family), so a suppression comment would break a rule it enforces on
+  everyone else.
+</Note>
+
+## Compensating for LLM blind spots
+
+Some defaults are stricter than a careful human team would choose. That is
+deliberate: the target is code written at scale, often with an LLM in the loop.
+Each strict default answers a specific way generated code drifts:
+
+| An LLM tends to... | So Fensu... |
+| --- | --- |
+| not see inferred types | requires explicit annotations, including locals |
+| smear state across boundaries | requires explicit dataflow and flags outer-state mutation |
+| sprawl | caps orchestrator function and file size |
+
+"Stricter than most teams do" is usually the reason a rule exists, not an argument
+against it.
+
+## Rules claim only what they check
+
+A rule is defined by what it **completely and honestly checks**. Fensu will not
+ship a rule that verifies a fraction of its stated intent and names itself after
+the whole idea.
+
+- A contract that cannot be checked properly is dropped, not described-but-unenforced.
+- Detection does the real analysis, not a cheap proxy dressed up as the full rule.
+- Any narrowing is an explicit, stated limit, never a silent hole.
+
+So when a rule flags your code, it is a claim it can stand behind, which also makes
+it a concrete thing to argue with if it is wrong.
+
+The same standard is why duplicated code is reported, not enforced. Fensu can
+prove deterministically that two functions match. It cannot prove that they
+should be one, so [`fensu dupes`](/concepts/duplicated-code) presents the copies
+as evidence and never fails a build.
+
+## Not a style tool
+
+Fensu checks how a codebase is *organized*, not how it is *formatted*. Line length,
+import ordering, unused imports, and syntax modernization belong to a formatter or a
+general-purpose linter.
+
+If Fensu overlaps with another tool you already run (for example a global
+argument-count limit), there is no need to run both: disable Fensu's version and
+keep the other tool's.

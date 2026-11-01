@@ -1,0 +1,217 @@
+---
+title: Repository Rules
+description: "Author aggregate custom rules that compare explicit named Python, Rust, TypeScript, and Svelte targets."
+---
+
+Repository rules enforce contracts that span more than one configured analyzer
+target. They are ordinary Python-authored custom rules, but receive one immutable
+`Repository` subject and explicit named target handles instead of a current file or
+one target-local project.
+
+Use them for policies such as a backend contract agreeing with a frontend client,
+shared schema ownership, or repository-wide dependency direction. A matching name
+in two targets is not evidence of a relationship: compare only facts and resolved
+edges that Fensu exposes.
+
+## Execution model
+
+A repository rule runs exactly once during an aggregate all-target check:
+
+```bash
+fensu check
+```
+
+It does not run during a target-scoped check:
+
+```bash
+fensu check --target web
+```
+
+Skipping is deliberate. A repository rule never receives a partial target
+universe. Target-local file and project rules continue to run normally in the same
+aggregate check, and all findings are merged into one deterministic report.
+
+Fensu collects target facts only when a repository rule is selected. Native Rust,
+TypeScript, and Svelte discovery, parsing, and built-in checks stay native; web
+analysis remains Node-free. Fensu starts the bounded Python host only when an active
+repository rule requires it.
+
+## Configure repository policy
+
+Repository rules require at least two explicit named targets. Configure their
+policy once in the top-level `[repository_rules]` table, not inside any target:
+
+```toml
+[targets.backend]
+analyzer = "python"
+root = "."
+roots = ["src/server"]
+tests = ["tests"]
+tooling = []
+select = ["FF"]
+
+[targets.web]
+analyzer = "typescript"
+root = "frontend"
+roots = ["src"]
+tests = ["tests"]
+tooling = []
+select = ["FPTS"]
+
+[repository_rules]
+rule_paths = ["rules/repository.py"]
+select = ["XREP001"]
+```
+
+The table supports the normal custom-rule `rule_paths`, `rule_modules`, `select`,
+`warn`, `ignore`, `rule_options`, `rule_ignores`, `rule_exceptions`, `cache`, and
+`skills` keys. Paths in repository exceptions and diagnostics are relative to the
+repository configuration, not to an individual target. Repository exceptions are
+file-level; they do not accept `symbols`.
+
+An active rule is applicable only when the configured registry contains every
+analyzer declared by that rule. Inspect its resolved subject, analyzer capabilities,
+options, and policy normally:
+
+```bash
+fensu rule XREP001
+```
+
+Generated project skills include the same repository-rule metadata and explain the
+aggregate-only execution contract.
+
+## Author a repository rule
+
+Declare the `Repository` subject and all analyzer capabilities the rule reads:
+
+```python
+from fensu import (
+    AnalyzerId,
+    Family,
+    Fault,
+    ProjectPath,
+    Repository,
+    RuleContext,
+    rule,
+)
+
+
+@rule(
+    code="XREP001",
+    family=Family.CUSTOM,
+    slug="contract-version",
+    message="Backend and frontend contract versions differ",
+    analyzers=(AnalyzerId.PYTHON, AnalyzerId.TYPESCRIPT),
+    cacheable=True,
+)
+def contract_version(
+    *, repository: Repository, ctx: RuleContext
+) -> list[Fault]:
+    del repository
+    backend = ctx.targets.named("backend")
+    web = ctx.targets.named("web")
+    if backend is None or web is None:
+        return []
+
+    contract = backend.python.file(ProjectPath("src/server/contracts.py"))
+    client = web.web.file(ProjectPath("src/client.ts"))
+    if contract is None or client is None:
+        return []
+
+    if "VERSION = 1" in contract.source and "version = 2" in client.source:
+        return [ctx.path_fault(path=web.repository_path(client.file))]
+    return []
+```
+
+The callback shape is:
+
+```python
+def check(*, repository: Repository, ctx: RuleContext) -> list[Fault]: ...
+```
+
+The `Repository` value is the stable identity of the aggregate subject. Read target
+state only through `ctx.targets`; repository contexts do not expose a current file,
+source, `ctx.project`, `ctx.graph`, or unqualified analyzer facts.
+
+## Target handles
+
+`ctx.targets.all()` returns every configured target in stable name order.
+`ctx.targets.named(name)` returns one exact target or `None`.
+
+Each `RuleTargetFacts` handle exposes:
+
+| Member | Purpose |
+| --- | --- |
+| `identity` | A `Target` with stable `name`, `analyzer`, and repository-relative `root`. |
+| `tree` | The target-local deterministic `ProjectTree`. |
+| `graph` | The target-local `ArchitectureGraph`. |
+| `python` | `PythonWorkspaceFacts` for a Python target. |
+| `rust` | `RustWorkspaceFacts` for a Rust target. |
+| `web` | `WebWorkspaceFacts` for a TypeScript or Svelte target. |
+| `repository_path(value)` | Translate a target-local `File` or `ProjectPath` for a repository diagnostic. |
+| `repository_location(value)` | Translate a target-local `SourceLocation` for `ctx.fault_at()`. |
+
+Target tree, graph, and analyzer facts use target-local paths. Always translate a
+path or location before reporting it. Accessing facts for the wrong analyzer, or an
+analyzer omitted from the rule's `analyzers`, fails closed rather than returning an
+ambiguous value.
+
+Python targets expose `PythonWorkspaceFacts.files` and focused
+`PythonWorkspaceFacts.file(...)` lookups. Each `PythonFileFacts` contains the
+immutable file identity, source, and Fensu-owned fact, text, syntax, and relation
+zones. Rust and web targets use the same workspace models described in the
+[`RuleContext` reference](/reference/rule-context#ctxrust).
+
+## Diagnostics
+
+Repository findings are repository-relative. Use one of the translated values:
+
+```python
+return [ctx.path_fault(path=web.repository_path(client.file))]
+```
+
+```python
+return [
+    ctx.fault_at(location=web.repository_location(import_fact.location))
+]
+```
+
+`ctx.path_fault()` without a path reports against the repository subject `"."`.
+As with other custom rules, warnings do not affect the exit code, blocking findings
+produce exit code `1`, and configuration or host errors produce exit code `2`.
+
+## Cache behavior
+
+Repository rules use a distinct cache namespace and requester. Cache identity
+always includes the complete deterministic target registry: target names,
+analyzers, and roots, together with rule implementation and repository policy.
+Adding, removing, renaming, relocating, or changing the analyzer of a target
+invalidates the result.
+
+Within a stable registry, invalidation follows the queries the rule actually made:
+
+- focused `python.file(...)`, `rust.file(...)`, `web.file(...)`, tree, and graph
+  lookups survive unrelated edits;
+- broad `files`, `tree.paths`, `graph.nodes`, and similar inventory queries
+  invalidate when their complete answer changes.
+
+Cached and uncached diagnostics and exit codes are identical. `--cache-stats`
+includes repository-rule hits, misses, invalidations, writes, and non-cacheable
+results in the aggregate counters.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Custom rules" icon="code" href="/concepts/custom-rules">
+    Rule metadata, options, loading, testing, and cacheability.
+  </Card>
+  <Card title="RuleContext" icon="brackets-curly" href="/reference/rule-context">
+    Target-local tree, graph, and analyzer fact contracts.
+  </Card>
+  <Card title="fensu check" icon="check" href="/cli/check">
+    Aggregate checks, target selection, diagnostics, and exit codes.
+  </Card>
+  <Card title="Caching" icon="database" href="/concepts/caching">
+    Persistent cache correctness and invalidation.
+  </Card>
+</CardGroup>

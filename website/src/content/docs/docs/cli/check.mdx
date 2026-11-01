@@ -1,0 +1,208 @@
+---
+title: fensu check
+description: "Evaluate the configured rules against your repository and report every fault."
+---
+
+`fensu check` is the core command. It loads your configuration, discovers the
+files in each scope, runs the selected rules, and reports every fault it finds. It
+is the command you wire into CI.
+
+```bash
+fensu check [paths...] [--warn] [--no-color]
+             [--cache | --no-cache] [--cache-stats] [--target TARGET]
+```
+
+## Usage
+
+Run against the repository described by your `fensu.toml` or `[tool.fensu]`:
+
+```bash
+fensu check
+```
+
+Fensu finds your [configuration](/concepts/configuration) by searching upward from
+the current directory, sorts files into the product, test, and tooling
+[scopes](/concepts/architecture-model#scopes), and applies each scope's rules. An
+explicit multi-target configuration runs every target and produces one report.
+Selected [repository rules](/concepts/repository-rules) then run exactly once over
+that complete target registry.
+
+## Arguments and options
+
+| Argument | Description |
+| --- | --- |
+| `paths...` | Optional for Python and web targets. Use these paths instead of configured `roots`. Rust targets use Cargo discovery and reject positional paths. |
+| `--warn` | Also evaluate and report rules configured in `warn`. Warnings never make the command fail. |
+| `--no-color` | Disable ANSI color in the output. |
+| `--cache` / `--no-cache` | Enable or disable persistent result caching for this run. |
+| `--cache-stats` | Write cache operation counts to stderr. |
+| `--target TARGET` | Evaluate only one named analyzer target; repository rules are skipped. |
+
+Passing paths replaces the configured roots for that run. The rest of the
+configuration, including [evaluation targeting](/concepts/configuration#evaluation-targeting),
+still applies. Color is enabled automatically when the output is a terminal and
+disabled otherwise, and `--no-color` forces it off. With several configured
+targets, positional paths require `--target TARGET` so their owner is unambiguous.
+
+```bash
+fensu check src/my_package/main
+```
+
+## Output
+
+When the repository conforms, Fensu prints a summary and nothing else:
+
+```text
+Found 0 faults
+```
+
+When evaluation targeting is configured, the command also reports how many
+discovered files received direct evaluation:
+
+```text
+Evaluation: 412 of 2,153 Python files (1,741 excluded by config)
+```
+
+When it finds problems, it prints one diagnostic per fault, then the summary. Each
+diagnostic has a stable, editor-friendly shape:
+
+```text
+FFA002  function 'run' must define a return type annotation
+ --> src/my_package/main/run.py:5:0
+  |
+5 | def run(a, b):
+  | ^
+  |
+  = help: Declare the returned value type, using None when the function returns no value.
+```
+
+- The first line is the rule code and the **message**: the concrete contract that
+  was violated.
+- The `-->` line is the location as `path:line:column`, repository-relative so an
+  editor can make it clickable. A file-level fault with no specific line shows `-`
+  for the line and column.
+- The source excerpt shows the offending line with a caret under the exact column.
+- The `= help:` line is the **remediation**: the normal correction, wrapped at 100
+  columns.
+
+This two-level message contract (what is wrong, and how to fix it) is the same
+whether the fault comes from a core rule or a [custom rule](/concepts/custom-rules),
+and the text is written to be read at the moment of violation by a person or an
+agent.
+
+### Warnings
+
+Rules listed in `warn` are evaluated only when you pass `--warn`:
+
+```bash
+fensu check --warn
+```
+
+Warning diagnostics appear after blocking faults, and the summary reports both
+tiers:
+
+```text
+Found 0 faults and 3 warnings
+```
+
+Warnings never affect the exit code. See the
+[`warn` key](/concepts/configuration#the-warn-tier) for how to configure them.
+
+## Exit codes
+
+| Code | Meaning |
+| --- | --- |
+| `0` | No blocking faults found, even if `--warn` reports warnings. |
+| `1` | One or more blocking faults found. |
+| `2` | Configuration or evaluation setup failed. |
+
+Because a non-zero exit fails a CI job, adding `fensu check` to your pipeline turns
+architectural drift into a build failure.
+
+## Selecting what runs
+
+`fensu check` runs the rules resolved from your `select` and `ignore`
+configuration. Both take rule-code **prefixes**: `FF` is every core rule, `FFR` a
+family, `FFR3` a hundreds bucket, `FFR301` one rule; `X` is every custom rule,
+`XDB` a custom namespace, `XDB001` one custom rule. Activated native packs use the
+reserved `FP` namespace: `FPDG` selects the complete Dagster policy and `FPDG022`
+selects one Dagster-native rule; `FPRS` selects the complete Rust policy. To narrow a run, adjust those keys rather than the
+command:
+
+```toml
+select = ["FFL", "FFR"]   # only layers and roles
+ignore = ["FFH007"]       # minus one rule
+```
+
+Pack selectors are available only after activation with `rule_packs`; see
+[Native rule packs](/concepts/rule-packs).
+
+There is no inline suppression comment. When a rule genuinely does not fit, disable
+it globally, add an exact [rule exception](/concepts/configuration#exact-rule-exceptions),
+add a [path-scoped rule ignore](/concepts/configuration#path-scoped-rule-ignores),
+or replace it with a custom rule. Use
+[evaluation targeting](/concepts/configuration#evaluation-targeting) when a whole
+region is outside the current adoption boundary. See
+[Philosophy](/philosophy#how-to-deviate) for why.
+
+## Post-check cleanup
+
+After either a native or custom-rule check, Fensu removes empty subdirectories
+under configured product, test, and tooling roots. It also removes a bytecode-only
+subtree when deleting regular `.pyc` or `.pyo` files beneath `__pycache__` makes
+that subtree empty. It does not purge caches from active source trees.
+
+Configured roots, source and unknown files, non-empty directories, symlinks,
+concurrent additions, and paths outside configured roots are preserved. Cleanup is
+best-effort and never changes the check's output or exit code.
+
+## Caching
+
+`fensu check` keeps a persistent result cache, on by default, in a SQLite
+database at `.fensu/cache/v2.db` in the repository root. Add `.fensu/cache/`
+to your `.gitignore`. The [`[cache]` table](/concepts/configuration#cache)
+configures it; these flags override the configuration for one run:
+
+| Option | Description |
+| --- | --- |
+| `--cache` | Force caching on. |
+| `--no-cache` | Force caching off; never opens or creates cache storage. |
+| `--cache-stats` | Write one line of cache statistics to stderr. |
+
+The `--cache-stats` line reports `hits`, `misses`, `invalidations`, `writes`,
+`non_cacheable`, and `storage_failed`. When caching was requested but unavailable,
+it reports `Cache: disabled (<reason>)` instead.
+
+Caching never changes output: a cached run is byte-identical to an uncached run,
+and any cache failure degrades to fresh computation. See
+[Caching](/concepts/caching) for the invalidation model, the correctness
+contract, and how custom rules stay cacheable.
+
+## Skill freshness
+
+When Fensu finds an installed project skill that no longer matches the active
+policy, it writes a non-failing notice to stderr:
+
+```text
+Fensu skill files are out of date; run `fensu skills`.
+```
+
+Use [`fensu skills --check`](/cli/skills#checking-freshness) when freshness
+must be enforced in CI.
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Configuration" icon="gear" href="/concepts/configuration">
+    Scopes, selection, thresholds, and contracts.
+  </Card>
+  <Card title="Rule families" icon="list-check" href="/concepts/rule-families">
+    What each rule checks.
+  </Card>
+  <Card title="fensu rule" icon="magnifying-glass" href="/cli/rule">
+    Inspect the full metadata for any code in the output.
+  </Card>
+  <Card title="fensu map" icon="diagram-project" href="/cli/map">
+    See the structure that check enforces.
+  </Card>
+</CardGroup>

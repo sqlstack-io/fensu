@@ -1,0 +1,171 @@
+---
+title: fensu map
+description: "Render a deterministic downstream or upstream call tree for a function, with clickable locations."
+---
+
+`fensu map` renders a function's call lineage as a deterministic terminal tree. It
+is the read-and-explore counterpart to [`fensu check`](/cli/check)'s enforcement:
+where `check` imposes the repository's structure, `map` lets you see it. It is
+useful for recovering the mental map of a large codebase on demand, without paying
+a model to rediscover it each time.
+
+```bash
+fensu map SYMBOL [--direction DIRECTION] [--root ROOT ...] [--depth N]
+                  [--paths MODE] [--color MODE]
+                  [--cache | --no-cache] [--cache-stats]
+```
+
+<Note>
+  `fensu map` does **not** require Fensu configuration or rule adoption. It
+  resolves import roots on its own, so you can run it on any Python repository.
+</Note>
+
+## Usage
+
+Point it at a function to get its downstream call tree, the default direction:
+
+```bash
+fensu map run_check --root src
+```
+
+```text
+run_check(...)  src/fensu/cli/main/check.py:23
+├── _parser(...)  src/fensu/cli/main/check.py:49
+├── load_config(...)  src/fensu/config/main/load_config.py:15
+│   ├── locate_config(...)  src/fensu/config/_helpers/discovery.py:13  (depth limit)
+│   ├── parse_config_source(...)  src/fensu/config/_helpers/parse.py:14  (depth limit)
+│   ├── validate_config(...)  src/fensu/config/_helpers/validate.py:19  (depth limit)
+│   └── build_config(...)  src/fensu/config/_helpers/defaults.py:20  (depth limit)
+├── discover_files(...)  src/fensu/discovery/main/discover_files.py:11
+├── build_ruleset(...)  src/fensu/rules/catalog/main/build_ruleset.py:10
+├── evaluate(...)  src/fensu/evaluation/main/evaluate.py:16
+└── render(...)  src/fensu/reporting/main/render.py:12
+```
+
+Each node is one resolved call, shown with its function name and a `path:line`
+location. Downstream calls are listed in source order, and locations are
+repository-relative by default so editors can make them clickable.
+
+Use upstream direction to trace the functions that call the selected function:
+
+```bash
+fensu map evaluate --direction upstream
+```
+
+Upstream mapping inverts the same project-call edges that downstream mapping can
+prove. It includes concrete inherited-method dispatch, but omits callers across
+unresolved parameter or dynamic seams rather than guessing.
+
+## Selecting a symbol
+
+The symbol argument accepts function and method selectors:
+
+| Form | Example | Use |
+| --- | --- | --- |
+| Bare name | `run_check` | A uniquely named top-level function. |
+| Dotted name | `config.main.load_config` | A module-qualified function. |
+| `path::function` | `src/fensu/cli/main/check.py::run_check` | An exact file and function. |
+| `Class.method` | `FunctionDefinition.build_key` | A uniquely named class and method. |
+| Full dotted method | `fensu.mapping.models.FunctionDefinition.build_key` | An exact module, class, and method. |
+| `path::Class.method` | `src/fensu/mapping/models.py::FunctionDefinition.build_key` | An exact file, class, and method. |
+
+If a bare name or `Class.method` is ambiguous across the resolved roots, Fensu
+lists full dotted keys and asks you to qualify the selector rather than guessing.
+
+## Import roots
+
+`--root` names a Python import root and may be repeated to map across several
+independent package trees:
+
+```bash
+fensu map service.run --root services --root libraries
+```
+
+When you do not pass `--root`, `fensu map` uses your configured Fensu roots if a
+configuration is present, otherwise it infers `src/`, and otherwise falls back to
+the repository root.
+
+## Options
+
+| Option | Values | Default | Purpose |
+| --- | --- | --- | --- |
+| `--root` | path (repeatable) | inferred | Python import roots to map. |
+| `--depth` | non-negative integer | `3` | Maximum call depth before truncation. |
+| `--paths` | `relative`, `absolute`, `compact`, `none` | `relative` | How locations are displayed. |
+| `--color` | `auto`, `always`, `never` | `auto` | ANSI color behavior. |
+| `--direction` | `downstream`, `upstream` | `downstream` | Follow proven callees or proven callers. |
+| `--cache` / `--no-cache` | flag | configured | Enable or disable the persistent map index for this run. |
+| `--cache-stats` | flag | off | Write map cache operation counts to stderr. |
+
+Path display modes trade detail for readability. `compact` keeps a leading segment
+and the filename, which stays legible in deeply layered repositories:
+
+```bash
+fensu map run_check --root src --depth 2 --paths compact
+```
+
+```text
+run_check(...)  src/fensu/…/main/check.py:23
+├── _parser(...)  src/fensu/…/main/check.py:49
+├── load_config(...)  src/fensu/…/main/load_config.py:15
+│   ├── locate_config(...)  src/fensu/…/_helpers/discovery.py:13  (depth limit)
+│   └── ...
+└── render(...)  src/fensu/…/main/render.py:12
+```
+
+Color is automatic for terminals, can be forced with `--color`, and respects the
+`NO_COLOR` environment variable.
+
+Map index caching follows the configured `[cache].enabled` value when configuration
+is available and defaults to enabled otherwise. It shares Fensu's persistent cache
+storage but remains separate from cached check results.
+
+## What the walk resolves
+
+The native provider performs a conservative analysis of project functions and
+methods. It resolves:
+
+- same-module calls,
+- absolute and relative direct imports,
+- module aliases,
+- namespace packages,
+- calls across multiple import roots,
+- concrete method calls through constructors, imports, annotations, and `self` or
+  `cls` dispatch.
+
+It does not guess dynamic dispatch. In downstream trees, calls made through a
+function parameter are shown as **unresolved seams** rather than invented targets.
+In upstream trees, unresolved calls are omitted because they cannot be attributed
+to a proven target. Protocol dispatch resolves only when one concrete target can
+be proven; ambiguous protocol and dynamic method calls remain unresolved rather
+than guessed. This keeps the map trustworthy: what it draws, it can stand behind.
+
+## Markers
+
+The tree marks three deterministic conditions so the output is stable and
+unambiguous:
+
+- **depth limit**: the branch was truncated at `--depth`.
+- **cycle**: a function reachable from itself; only the looping branch stops, and
+  siblings continue normally.
+- **unresolved**: a dynamic call the provider will not guess.
+
+## Exit codes
+
+| Code | Meaning |
+| --- | --- |
+| `0` | The tree was rendered. |
+| `2` | The symbol could not be found, was ambiguous, or a file could not be parsed. |
+
+An unknown symbol reports a clear error:
+
+```text
+Unknown project function: does_not_exist
+```
+
+## Not yet available
+
+`fensu map` is deliberately conservative today. The following are planned and not
+part of current behavior: broader protocol dispatch resolution, JSON output,
+helper collapsing and layered rendering, and docstring captions. This page
+documents only what the command does now.

@@ -1,0 +1,167 @@
+---
+title: fensu skills
+description: "Generate and install agent skill files from your active ruleset so agent instructions stay in sync with what CI enforces."
+---
+
+`fensu skills` installs project-specific agent guidance generated from the same
+policy that `fensu check` enforces. Regenerate it when configuration or custom
+rules change, or verify it without writing in CI.
+
+```bash
+fensu skills [--target TARGET ...] [--global]
+              [--install-root git|project|PATH] [--check] [--force]
+```
+
+## Usage
+
+From anywhere under the configured project:
+
+```bash
+fensu skills
+```
+
+Fensu resolves a project identity, generates one `SKILL.md`, and installs the same
+content for each supported target:
+
+```text
+Updated Fensu skill files:
+  /path/to/repo/.opencode/skills/fensu-acme/SKILL.md
+  /path/to/repo/.claude/skills/fensu-acme/SKILL.md
+  /path/to/repo/.agents/skills/fensu-acme/SKILL.md
+```
+
+The file records the governed project path, scopes, effective configuration,
+blocking and warning rules, thresholds, exceptions, custom-rule practices, testing,
+and common navigation commands. It is generated deterministically from the current
+project policy.
+
+## Project identity
+
+Every generated directory is named `fensu-<identity>`. Fensu chooses the identity
+in this order:
+
+1. `[skills].name` in Fensu configuration.
+2. The nearest `[project].name` in `pyproject.toml`.
+3. The directory containing the active Fensu configuration.
+
+Names are normalized to lowercase ASCII kebab-case. Set the name explicitly when
+several Fensu projects could otherwise resolve to the same identity:
+
+```toml
+[skills]
+name = "acme-api"
+```
+
+## Targets
+
+By default Fensu installs to all supported agent targets. Pass `--target` (which
+may be repeated) to install to specific ones:
+
+```bash
+fensu skills --target opencode --target claude
+```
+
+| Target | Local path | Global path (`--global`) |
+| --- | --- | --- |
+| `opencode` | `.opencode/skills/fensu-acme-api/SKILL.md` | `~/.config/opencode/skills/fensu-acme-api/SKILL.md` |
+| `claude` | `.claude/skills/fensu-acme-api/SKILL.md` | `~/.claude/skills/fensu-acme-api/SKILL.md` |
+| `agents` | `.agents/skills/fensu-acme-api/SKILL.md` | `~/.agents/skills/fensu-acme-api/SKILL.md` |
+
+## Installation root
+
+Local skills install at the nearest Git root by default. If no Git root exists,
+they install beside the active Fensu configuration. This gives a monorepo one
+shared agent directory while each project keeps a distinct skill name.
+
+Use `--install-root project` to install beside the active configuration,
+`--install-root git` to require the Git root, or pass an explicit path. Relative
+paths resolve from the invocation directory.
+
+In a monorepo, each project resolves its own identity, so several projects can
+share one Git-root agent directory:
+
+```text
+repo/.agents/skills/
+├── fensu-api/SKILL.md
+└── fensu-worker/SKILL.md
+```
+
+Fensu refuses case-only identity collisions and files owned by another project
+rather than replacing them.
+
+## Options
+
+| Option | Description |
+| --- | --- |
+| `--target TARGET` | Install only to this target. Repeatable. One of `opencode`, `claude`, `agents`. Defaults to all. |
+| `--global` | Install the project-specific skill under your home directory. Cannot be combined with `--install-root`. |
+| `--install-root git\|project\|PATH` | Choose the local installation root. Defaults to the nearest Git root. |
+| `--check` | Verify expected files and exact generated content without writing. Cannot be combined with `--force`. |
+| `--force` | Replace an unmanaged destination. It cannot replace a skill owned by another Fensu project. |
+
+## Checking freshness
+
+Use the non-writing check in CI:
+
+```bash
+fensu skills --check
+```
+
+Current files exit `0`. Missing, stale, divergent, or malformed generated files
+exit `1` and list the affected paths. Ownership collisions exit `2`.
+
+Treat this command as the onboarding completion gate. `fensu init --yes` installs
+all three local targets by default; a successful init followed by a successful
+freshness check proves repository-local agent guidance reflects the active policy.
+
+`fensu check` also prints a non-failing stale-skill notice when it can identify an
+installed local skill that needs regeneration.
+
+## Update safety
+
+Updates across requested targets are transactional. Fensu refuses symlinks,
+unsafe paths, hand-written destinations, and files owned by another project. An
+unmanaged destination fails rather than being replaced:
+
+```text
+refusing to overwrite unmanaged skill file: .claude/skills/fensu-acme/SKILL.md; rerun with --force
+```
+
+Use `--force` only when you intend to replace an unmanaged file. Older generated
+`skills/fensu/SKILL.md` files are migrated to the project-specific path when their
+generated marker proves Fensu owns them. Hand-written generic skills are left
+alone.
+
+## Exit codes
+
+| Code | Meaning |
+| --- | --- |
+| `0` | Files were updated, or `--check` found them current. |
+| `1` | `--check` found files that require an update. |
+| `2` | Usage, configuration, ownership, collision, or installation failure. |
+
+## Custom rules are included
+
+Because [custom rules](/concepts/custom-rules) merge into the same catalogue as core
+rules, configured blocking and warning rules appear in the generated guidance. Your
+repository's own conventions become part of the instructions agents read.
+
+## Keeping guidance current
+
+Regenerate whenever your ruleset changes so committed guidance stays in sync. Verify
+it in CI without writing:
+
+```bash
+fensu skills --check
+```
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Custom rules" icon="code" href="/concepts/custom-rules">
+    Author rules whose messages flow into generated guidance.
+  </Card>
+  <Card title="fensu rule" icon="magnifying-glass" href="/cli/rule">
+    Inspect a single rule's metadata.
+  </Card>
+</CardGroup>

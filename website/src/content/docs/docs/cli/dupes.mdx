@@ -1,0 +1,415 @@
+---
+title: fensu dupes
+description: "Report ranked clusters of duplicated functions as advisory review input, and act on them as evidence of drift."
+---
+
+`fensu dupes` reports concrete duplicated code: ranked clusters of exact, renamed,
+and near-miss function-level copies in Python, Rust, TypeScript, JavaScript, and
+Svelte. It is an advisory review aid, not a gate. Where [`fensu check`](/cli/check)
+enforces the policy, `dupes` points at copies worth a second look. For why
+duplication counts as architectural drift, and a worked example, see
+[Duplicated code](/concepts/duplicated-code).
+
+```bash
+fensu dupes [--json] [--top TOP] [--min-similarity MIN_SIMILARITY]
+            [--min-tokens MIN_TOKENS] [--lang LANG ...] [--path PATH ...]
+            [--include-tests] [--since REV] [--diff]
+```
+
+<Note>
+  `fensu dupes` never fails on findings. It exits `0` whenever analysis succeeds,
+  whatever it finds. Unlike `fensu check`, its findings never need to reach zero:
+  treat each cluster as a hypothesis to review.
+</Note>
+
+## Usage
+
+Run it from anywhere under a configured project to see the top 30 clusters:
+
+```bash
+fensu dupes
+```
+
+```text
+fensu dupes: 3 duplicated-code clusters (advisory; duplicated-code findings to review, not fensu check failures)
+analysed python 7 units; 0 allowlisted pairs hidden; 0 contract-exempt members hidden
+  1. renamed sim 1.00, ~222 duplicated tokens, 3 members
+     src/shop/billing/summary.py:1-14 summarize_orders (111 tokens)
+     src/shop/orders/summary.py:1-14 summarize_orders (111 tokens)
+     src/shop/reports/summary.py:1-14 summarize_invoices (111 tokens)
+  2. near-miss sim 0.99, ~97 duplicated tokens, 2 members
+     src/shop/inventory.py:1-12 restock_levels (97 tokens)
+     src/shop/inventory.py:15-26 reorder_levels (98 tokens)
+  3. exact sim 1.00, ~90 duplicated tokens, 2 members
+     src/shop/exporters/csv_exporter.py:5-15 CsvExporter.export (90 tokens)
+     src/shop/exporters/json_exporter.py:5-15 JsonExporter.export (90 tokens)
+fensu dupes: found 3 duplicated-code clusters across 7 units in 0.0s (advisory)
+```
+
+Unlike [`fensu map`](/cli/map), `dupes` needs Fensu
+[configuration](/concepts/configuration). Without a `fensu.toml` or
+`[tool.fensu]` table it exits `2`.
+
+The most useful everyday forms are:
+
+```bash
+fensu dupes --since origin/main          # only clusters touching your change
+fensu dupes --since origin/main --diff   # plus where the first two copies diverge
+fensu dupes --path 'src/shop/orders/**'  # does this area already have an owner?
+fensu dupes --lang rust --top 10 --json
+```
+
+## Reading the report
+
+The first line is the summary, and the second counts the analysed units per
+language and what configuration hid. Each numbered cluster then shows:
+
+- **Category**: the cluster's weakest link. `exact` means identical tokens,
+  `renamed` means only names and literals differ, and `near-miss` means similar
+  but not identical.
+- **Similarity** (`sim`): one value, or a `min-max` range when the links differ.
+- **Duplicated tokens**: the estimated tokens that would disappear if only one
+  copy remained. Clusters are ranked by this number.
+- **Members**: one line per copy as `path:start-end name (tokens)`. Methods are
+  qualified as `Class.method`.
+
+Two markers can follow a member:
+
+- `[changed]`: the member touches lines changed since the [`--since`](#changes-since-a-revision) revision.
+- `[forced]`: the member implements a contract method that configuration
+  requires every subclass to define itself. See
+  [contract exemptions](#contract-exemptions).
+
+Text output lists up to 12 members per cluster and points at `--json` for the
+rest. When more clusters exist than `--top` allows, a final
+`... N more clusters (use --top)` line says so. The closing
+`fensu dupes: found ...` line is written to stderr, so redirected stdout stays
+clean.
+
+## Options
+
+| Option | Values | Default | Purpose |
+| --- | --- | --- | --- |
+| `--top` | integer | `30` | Number of clusters to print. |
+| `--min-similarity` | number in (0, 1] | `0.8` | Near-miss similarity threshold. |
+| `--min-tokens` | integer | `60` | Ignore units with fewer normalised tokens. |
+| `--lang` | `python`, `rust`, `typescript`, `javascript`, `svelte` | all | Analyse one language. Repeatable. |
+| `--path` | path glob | none | Keep only clusters with a member matching the glob. Repeatable. |
+| `--include-tests` | flag | off | Also analyse configured tests and Rust test code. |
+| `--since` | Git revision | none | Keep only clusters touching lines changed since the revision. |
+| `--diff` | flag | off | Show where the first two visible members diverge. |
+| `--json` | flag | off | Print deterministic JSON instead of text. |
+
+### Changes since a revision
+
+`--since REV` keeps only clusters with at least one member touching lines added
+or changed since `REV`, including uncommitted and untracked files. Run it before
+review to see only the duplication your branch introduces or touches:
+
+```bash
+fensu dupes --since origin/main
+```
+
+An unknown revision is a usage error and exits `2`:
+
+```text
+fensu dupes: analysis failed: --since revision no-such-rev is not a commit in this repository.
+```
+
+### Showing divergence
+
+`--diff` adds up to 12 differing lines between the first two members of each
+cluster. When a cluster has at least two visible (non-forced) members, those are
+the two compared. Combined with `--since`, it shows whether a change reached only
+one copy:
+
+```bash
+fensu dupes --since HEAD --diff
+```
+
+```text
+fensu dupes: 1 duplicated-code cluster changed since HEAD (advisory; duplicated-code findings to review, not fensu check failures)
+analysed python 7 units; 0 allowlisted pairs hidden; 0 contract-exempt members hidden
+  1. near-miss sim 0.97-1.00, ~222 duplicated tokens, 3 members
+     src/shop/billing/summary.py:1-14 summarize_orders (111 tokens)
+     src/shop/orders/summary.py:1-14 summarize_orders (118 tokens) [changed]
+     src/shop/reports/summary.py:1-14 summarize_invoices (111 tokens)
+     diff src/shop/billing/summary.py:1-14 vs src/shop/orders/summary.py:1-14
+       - 7: if amount <= 0:
+       + 7: if amount <= 0 or order.get("cancelled"):
+```
+
+Here a cancelled-order fix landed in `orders/summary.py` only. The billing and
+reports copies still count cancelled orders. Identical members report
+`no differing lines`.
+
+### Narrowing the report
+
+`--path` keeps clusters with at least one member matching a glob, so copies
+elsewhere in the repository still show up as members. Use it before adding
+helpers to an area to find an existing owner:
+
+```bash
+fensu dupes --path 'src/shop/inventory.py' --diff
+```
+
+```text
+fensu dupes: 1 duplicated-code cluster (advisory; duplicated-code findings to review, not fensu check failures)
+analysed python 7 units; 0 allowlisted pairs hidden; 0 contract-exempt members hidden
+  1. near-miss sim 0.99, ~97 duplicated tokens, 2 members
+     src/shop/inventory.py:1-12 restock_levels (97 tokens)
+     src/shop/inventory.py:15-26 reorder_levels (98 tokens)
+     diff src/shop/inventory.py:1-12 vs src/shop/inventory.py:15-26
+       - 1: def restock_levels(items):
+       + 15: def reorder_levels(items):
+       - 11: low = [sku for sku, level in levels.items() if level < 10]
+       + 25: low = [sku for sku, level in levels.items() if level < 5]
+```
+
+`--lang` restricts analysis to the named languages, and `--min-tokens` and
+`--min-similarity` tighten or loosen detection. `--min-similarity` must be
+greater than `0` and at most `1`; other values are rejected with exit code `2`.
+
+### JSON output
+
+`--json` prints the same report as deterministic JSON on stdout:
+
+```bash
+fensu dupes --json --path 'src/shop/inventory.py' --diff
+```
+
+```json
+{
+  "command": "dupes",
+  "advisory": true,
+  "since": null,
+  "unit_counts": {"javascript": 0, "python": 7, "rust": 0, "svelte": 0, "typescript": 0},
+  "allowlisted_pairs": 0,
+  "contract_exempt_members": 0,
+  "total_clusters": 1,
+  "clusters": [
+    {
+      "rank": 1,
+      "category": "near-miss",
+      "similarity_min": 0.9949,
+      "similarity_max": 0.9949,
+      "duplicated_tokens": 97,
+      "members": [
+        {
+          "language": "python",
+          "path": "src/shop/inventory.py",
+          "name": "restock_levels",
+          "start_line": 1,
+          "end_line": 12,
+          "tokens": 97,
+          "changed": false,
+          "forced": false
+        },
+        ...
+      ],
+      "links": [{"left": 0, "right": 1, "similarity": 0.9949, "category": "near-miss"}],
+      "diff": {
+        "left": 0,
+        "right": 1,
+        "identical": false,
+        "lines": [
+          {"member": 0, "line": 11, "text": "low = [sku for sku, level in levels.items() if level < 10]"},
+          {"member": 1, "line": 25, "text": "low = [sku for sku, level in levels.items() if level < 5]"}
+        ],
+        "omitted_lines": 0
+      }
+    }
+  ]
+}
+```
+
+`total_clusters` counts every matching cluster, while `clusters` holds at most
+`--top` entries. `links` connect member indexes, and `diff` appears only with
+`--diff`.
+
+## What is analysed
+
+Sources come from every configured target, discovered the same way
+`fensu check` discovers them: target roots and tooling, with generated paths and
+[evaluation targeting](/concepts/configuration#evaluation-targeting) applied.
+Configured test paths, colocated web tests, Rust `tests/` and `benches/`
+directories, and Rust `#[cfg(test)]` and `#[test]` items are skipped unless you
+pass `--include-tests`. Paths matching [`[dupes].exclude`](#configuration) are
+always skipped.
+
+Units are functions:
+
+- **Python**: top-level functions and class methods (nested classes as
+  `Outer.Inner.method`). Decorators are not part of the unit.
+- **Rust**: `fn` items with bodies, including impl and trait methods (`Type::method`).
+- **TypeScript and JavaScript**: function declarations, functions assigned to a
+  `const`, and class methods and function-valued properties (`Class.method`).
+- **Svelte**: the same units inside every `<script>` block, reported with
+  component line numbers.
+
+TypeScript, JavaScript, and Svelte are compared with each other. Python and Rust
+are compared only within their own language.
+
+## How similarity works
+
+Each unit becomes a normalised token stream. Local names, parameters, attribute
+reads, and literals become placeholders. Keywords, operators, and Python layout
+stay. Call targets keep their names, so two functions with the same shape that
+call different helpers are near-misses rather than renamed copies. Comments,
+docstrings, and type annotations are dropped.
+
+- `exact`: identical tokens after dropping comments, docstrings, and annotations.
+- `renamed`: identical normalised streams, so only names and literals differ.
+- `near-miss`: similarity at or above `--min-similarity`. When the smaller unit
+  has fewer than 80 tokens, a near-miss needs at least `0.9`.
+
+Units below `--min-tokens` are ignored. Similar pairs join into transitive
+clusters, so one cluster can hold members of different categories. Fragments
+shared by very many units are treated as boilerplate and do not produce
+candidates.
+
+## Configuration
+
+`[dupes]` sits at the top level of `fensu.toml`, beside `[targets]` in a
+multi-target configuration, or under `[tool.fensu.dupes]` in `pyproject.toml`. It
+does not affect `fensu check`. Globs use Fensu's path syntax: `*` stays within
+one segment, `**` crosses segments, and a pattern without `/` matches a name at
+any depth.
+
+```toml
+[dupes]
+exclude = ["src/shop/generated/**"]
+
+[[dupes.allowlist]]
+paths = ["src/shop/exporters/*"]
+reason = "Each exporter intentionally mirrors one file format specification."
+
+[[dupes.contract_exemptions]]
+contract = "src/shop/contract.py:Exporter"
+forbidden_owners = ["src/shop/base.py:BaseExporter"]
+paths = ["src/shop/exporters/*"]
+reason = "The exporter contract test requires every exporter to define export itself."
+```
+
+| Key | Type | Purpose |
+| --- | --- | --- |
+| `exclude` | list of globs | Paths never analysed. |
+| `allowlist` | array of tables | Pairs of paths whose duplication is intentional. |
+| `contract_exemptions` | array of tables | Contract methods every subclass must define itself. |
+
+Unknown keys are rejected. Every `allowlist` and `contract_exemptions` entry
+needs a non-empty `paths` list and a non-empty `reason`. A missing reason is a
+configuration error and exits `2`:
+
+```text
+fensu dupes: analysis failed: Config key dupes.allowlist entry 1 needs a non-empty reason.
+```
+
+Detection thresholds are not configuration keys. Pass `--min-similarity` and
+`--min-tokens` on the command line instead.
+
+### Allowlist
+
+An allowlist entry hides a pair when both members match the entry's `paths`.
+Hidden pairs are counted in the summary, and clusters left with no visible link
+disappear:
+
+```text
+fensu dupes: 2 duplicated-code clusters (advisory; duplicated-code findings to review, not fensu check failures)
+analysed python 7 units; 1 allowlisted pairs hidden; 0 contract-exempt members hidden
+```
+
+A copy outside the allowlisted paths still links to the members inside them and
+stays visible.
+
+### Contract exemptions
+
+Some contracts require every implementation to define a method itself, which
+produces copies that must stay. A contract exemption marks those methods
+`[forced]`:
+
+| Key | Required | Meaning |
+| --- | --- | --- |
+| `contract` | yes | The contract class as `'relative/path.py:ClassName'`. |
+| `paths` | yes | Globs for the modules holding the implementations. |
+| `forbidden_owners` | no | Classes, in the same `path.py:ClassName` form, that must not supply the method. |
+| `reason` | yes | Why the copies are required. |
+
+The contract methods are the contract class's abstract methods (`@abstractmethod`
+or `@abc.abstractmethod`, including inherited ones that are not overridden), read
+statically from the source. A method is forced when its top-level class is under
+`paths`, derives from the contract, and would otherwise inherit that method from
+the contract, from a `forbidden_owners` class, or from nowhere. If any class in
+the method resolution order cannot be resolved inside the repository, the method
+is not forced. External and standard-library bases such as `ABC` or `Generic[T]`
+never block the exemption.
+
+Links between two forced members are hidden and counted as contract-exempt
+members. Links from a forced member to any other unit stay visible, because a
+private helper copy is still worth reviewing. Forced members are listed last and
+add nothing to the duplicated-token estimate:
+
+```text
+  1. near-miss sim 0.99, ~87 duplicated tokens, 3 members
+     src/shop/reports/rows.py:1-11 export_rows (88 tokens)
+     src/shop/exporters/csv_exporter.py:5-15 CsvExporter.export (90 tokens) [forced]
+     src/shop/exporters/json_exporter.py:5-15 JsonExporter.export (90 tokens) [forced]
+```
+
+An entry whose contract file is absent is inactive. A missing contract class in
+an existing file, or a `forbidden_owners` class that is not found in the analysed
+source, is a configuration error. Contract exemptions currently apply to
+Python classes only.
+
+## Acting on findings
+
+A genuine duplicate is evidence, not only a cleanup task. Two copies of one
+behaviour often point to wider drift: a missing shared owner, two subsystems
+implementing one concept, logic on the wrong side of a boundary, or copies that
+have already diverged.
+
+1. **Check for divergence first.** Run `--diff` to see whether a fix reached only
+   one copy. A difference found only in one copy may be a bug in the others, as
+   in the cancelled-order example above. Look at nearby clusters in the same
+   modules for a larger pattern.
+2. **Record the diagnosis before consolidating.** Consolidation removes the only
+   deterministic signal of the underlying drift, and the wider problem is much
+   harder to find once the duplicate is gone. Note why the copy existed in the
+   review, handoff, or an issue, and fix the root cause when it is in scope.
+3. **Consolidate duplication you introduce or touch.** Run
+   `fensu dupes --since origin/main` before review, and merge genuine copies
+   into one shared owner. Report unrelated duplication rather than refactoring
+   it as part of an unrelated change.
+4. **Allowlist intentional mirrors with a reason.** When copies must stay, record
+   them in [`[dupes].allowlist`](#allowlist) or as a
+   [contract exemption](#contract-exemptions) instead of forcing a merge.
+
+Generated [agent skills](/cli/skills) include the same guidance, so agents run
+`fensu dupes --since origin/main` before review and treat findings the same way.
+
+## Exit codes
+
+| Code | Meaning |
+| --- | --- |
+| `0` | Analysis succeeded, whether or not it found duplicated code. |
+| `2` | Usage error, invalid or missing configuration, unknown `--since` revision, or IO failure. |
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Duplicated code" icon="clone" href="/concepts/duplicated-code">
+    Why copies are drift, with a worked consolidation example.
+  </Card>
+  <Card title="fensu check" icon="list-check" href="/cli/check">
+    The blocking counterpart that enforces the configured policy.
+  </Card>
+  <Card title="Configuration" icon="gear" href="/concepts/configuration">
+    Targets, scopes, and evaluation targeting that dupes shares.
+  </Card>
+  <Card title="fensu map" icon="diagram-project" href="/cli/map">
+    Trace call flow before consolidating copies.
+  </Card>
+  <Card title="fensu skills" icon="robot" href="/cli/skills">
+    Generated guidance that includes the dupes workflow.
+  </Card>
+</CardGroup>

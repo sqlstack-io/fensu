@@ -1,0 +1,134 @@
+---
+title: Adopting Fensu
+description: "How to roll Fensu out on a new repo, a small existing repo, or a large existing one."
+---
+
+Fensu's defaults describe a coherent target architecture. How you turn them on
+depends on where you are starting. New / small repos are where Fensu
+pays off fastest; big legacy repos(e.g. 100k+ lines) need more judgment.
+
+## New repositories
+
+The defaults are calibrated for a fresh repo.
+
+```bash
+fensu init --yes --name my_package
+```
+
+[`fensu init`](/cli/init) scaffolds a `src/` package, a `tests/` directory, and a
+`fensu.toml` with the full ruleset selected. This is where Fensu is easiest to
+live with, because you never accumulate drift in the first place.
+
+## Small existing repositories
+
+This is the strongest first experience. Whether the repo is tidy or very
+inconsistent, adoption is mostly a single pass that leaves it on a coherent architecture.
+
+1. **Initialize** in the directory that holds your `pyproject.toml`:
+
+   ```bash
+   fensu init --yes
+   ```
+
+2. **See the drift:**
+
+   ```bash
+   fensu check
+   ```
+
+3. **Drive the faults to zero.** Hand the output to a coding agent and let it work
+   through them, since each diagnostic already states the contract and the fix:
+
+   ```text
+   Run `fensu check` and fix every fault. If a fault looks like it needs a
+   real design decision, leave it and list it for me instead of forcing a change.
+   ```
+
+   Most faults are pretty mechanical to fix, but open enough that they can't be auto fixed.
+   The few that would require a genuine structural decision are worth pausing on rather than rushing.
+
+4. **Defer the handful you want to think about.** Record them as explicit
+   [rule exceptions](/concepts/configuration#exact-rule-exceptions) or `ignore`
+   entries so the run is green and the deferral is visible, then come back to them
+   deliberately.
+
+The result is a repo that conforms to a coherent architecture and stays that way,
+for very little up-front effort.
+
+## Large existing repositories
+
+Pointing the full default set at a large, established codebase surfaces a lot at
+once. That is real drift against the target architecture, not the tool
+overreacting. But a big-bang refactor to zero faults is usually the wrong response,
+and it is rarely safe.
+
+Here the goal is not to bend the codebase to Fensu's defaults. It is to encode the
+architecture you actually have and want.
+
+<Warning>
+  Enforce as aggressively as you can refactor safely, and no more. If your test
+  suite would not catch a bad structural move, do not let the linter pressure you
+  into one.
+</Warning>
+
+**Custom rules are the main lever.** Where a default rule does not fit how part of
+the repo is legitimately built, do not twist the code to pass it. Write a
+[custom rule](/concepts/custom-rules) that states the invariant you genuinely care
+about. You capture real architectural intent as an executable check instead of
+paying for a disruptive migration, and the rule flows into your generated
+[agent guidance](/cli/skills) like any core rule.
+
+Supporting configuration keeps everything else visible while you decide:
+
+- [`ownership_roots`](/concepts/configuration#ownership-roots) when established
+  domains begin below structural grouping directories or at mixed physical depths.
+- [`ignore`](/concepts/configuration#selection) for a default that is wrong for
+  this repo globally.
+- [`warn`](/concepts/configuration#the-warn-tier) for a policy you want measured
+  but not blocking yet.
+- [`rule_exceptions`](/concepts/configuration#exact-rule-exceptions) for isolated,
+  justified findings.
+- [`rule_ignores`](/concepts/configuration#path-scoped-rule-ignores) for a justified
+  selector/path intersection while keeping rules and project context active.
+- [Evaluation targeting](/concepts/configuration#evaluation-targeting) to enforce
+  the regions you trust while keeping the rest as project context.
+
+Every deviation lives in [configuration](/concepts/configuration) or a custom rule,
+where a reviewer can see it, rather than scattered through the source. See
+[Philosophy](/philosophy) for why that matters.
+
+## Duplicated code in an existing repository
+
+[`fensu dupes`](/cli/dupes) is advisory, so you can add it on day one without
+changing what CI blocks. An established repository usually has a backlog of
+copies. Treat that backlog as a record of past drift, not as a to-do list that
+must reach zero.
+
+1. **Take a baseline.** Run the report once and keep the output with the
+   adoption notes:
+
+   ```bash
+   fensu dupes --top 50
+   ```
+
+2. **Triage the top clusters.** Sort each one into *genuine* (one concept with
+   no owner) or *intentional* (a deliberate mirror or a contract-forced copy).
+   Use `--diff` to find copies that have already diverged. A fix present in only
+   one copy is a bug report, not a refactor.
+3. **Record the diagnosis** for each genuine cluster before consolidating it,
+   in an issue or the adoption notes. Merging the copies removes the evidence.
+4. **Record intentional copies** in [`[dupes]`](/cli/dupes#configuration): an
+   `allowlist` entry for mirrors or a `contract_exemptions` entry for forced
+   methods, each with a `reason`.
+5. **Consolidate in focused batches.** Take one cluster or one area at a time,
+   add characterization tests first when coverage is weak, and let
+   [`fensu check`](/cli/check) decide where the shared owner lives.
+6. **Catch new duplication in review.** Run the report on every branch:
+
+   ```bash
+   fensu dupes --since origin/main --diff
+   ```
+
+Do not chase zero. The goal is that new duplication gets noticed and old
+duplication gets a recorded decision. See
+[Duplicated code](/concepts/duplicated-code) for a worked example.
