@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.28.3](https://github.com/sqlstack-io/fensu/compare/v0.28.2...v0.28.3) (2026-11-01)
+
+
+### Bug Fixes
+
+* recognize declaration role directories consistently ([#118](https://github.com/sqlstack-io/fensu/issues/118)) ([3b1f1c0](https://github.com/sqlstack-io/fensu/commit/3b1f1c085c3e881d942335e510254864ad6e6e13))
+
 ## [0.28.2](https://github.com/sqlstack-io/fensu/compare/v0.28.1...v0.28.2) (2026-11-01)
 
 
