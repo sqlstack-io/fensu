@@ -608,6 +608,35 @@ _PYTHON_OWNED_SFR_CODES: frozenset[str] = frozenset()
             path="src/example/models.py",
         ),
         NativeCustomRuleParityTestCase(
+            description="FFR101 accepts declarations in models role directories",
+            native_code="FFR101",
+            source=(
+                "from dataclasses import dataclass\n"
+                "@dataclass(frozen=True)\n"
+                "class Record:\n    value: int\n"
+            ),
+            expected_fault_count=0,
+            path="src/example/orders/models/record.py",
+        ),
+        NativeCustomRuleParityTestCase(
+            description="FFR001 rejects behavior in models role directories",
+            native_code="FFR001",
+            source="def build() -> None:\n    print('work')\n",
+            expected_fault_count=1,
+            path="src/example/orders/models/behavior.py",
+        ),
+        NativeCustomRuleParityTestCase(
+            description="FFS201 enforces immutability in models role directories",
+            native_code="FFS201",
+            source=(
+                "from dataclasses import dataclass\n"
+                "@dataclass(kw_only=True)\n"
+                "class Context:\n    cursor: str | None\n"
+            ),
+            expected_fault_count=1,
+            path="src/example/orders/models/context.py",
+        ),
+        NativeCustomRuleParityTestCase(
             description="FFR002 matches runtime declarations in types role files",
             native_code="FFR002",
             source="def build() -> None:\n    return None\n",

@@ -157,11 +157,9 @@ def _project_tree(
             (index for index, part in enumerate(directories) if part in ROLE_DIRECTORY_TO_NAME),
             None,
         )
-        role: str | None = (
-            ROLE_FILE_TO_NAME.get(relative_parts[-1])
-            if role_index is None
-            else ROLE_DIRECTORY_TO_NAME[directories[role_index]]
-        )
+        role: str | None = ROLE_FILE_TO_NAME.get(relative_parts[-1])
+        if role is None and role_index is not None:
+            role = ROLE_DIRECTORY_TO_NAME[directories[role_index]]
         owner_end: int = len(directories) if role_index is None else role_index
         domain_parts: tuple[str, ...] = directories[:owner_end]
         first_runtime_role: str | None = next(

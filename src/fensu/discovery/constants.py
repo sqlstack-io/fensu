@@ -18,6 +18,10 @@ ROLE_DIRECTORY_TO_NAME: dict[str, RoleName] = {
     RoleName.MAIN: RoleName.MAIN,
     HELPERS_DIRECTORY_NAME: RoleName.HELPERS,
     RoleName.CLASSES: RoleName.CLASSES,
+    RoleName.MODELS: RoleName.MODELS,
+    RoleName.TYPES: RoleName.TYPES,
+    RoleName.CONSTANTS: RoleName.CONSTANTS,
+    RoleName.EXCEPTIONS: RoleName.EXCEPTIONS,
 }
 ROLE_DIR_NAMES: frozenset[str] = frozenset(ROLE_DIRECTORY_TO_NAME)
 STRUCTURAL_MODULE_PART_TO_NAME: dict[str, RoleName] = {

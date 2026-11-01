@@ -29,7 +29,10 @@ pub(crate) fn role(source: &ScopedSource) -> Option<String> {
         if source.scope == SCOPE_TOOLING && part == ROLE_RULES {
             return Some(part.clone());
         }
-        if matches!(part.as_str(), ROLE_MAIN | ROLE_HELPERS | "classes") {
+        if matches!(
+            part.as_str(),
+            ROLE_MAIN | ROLE_HELPERS | "classes" | "models" | "types" | "constants" | "exceptions"
+        ) {
             return Some(if part == ROLE_HELPERS {
                 "helpers".to_owned()
             } else {
