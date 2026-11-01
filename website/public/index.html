@@ -44,10 +44,13 @@
     </svg>
     <header class="site-header">
       <div class="wrap header-inner">
-        <a class="brand" href="./" aria-label="Fensu home">
-          <img class="logo-light" src="assets/logo-light.png" alt="Fensu" width="148" height="30">
-          <img class="logo-dark" src="assets/logo-dark.png" alt="Fensu" width="148" height="30">
-        </a>
+        <div class="brand-lockup">
+          <a class="brand" href="./" aria-label="Fensu home">
+            <img class="logo-light" src="assets/logo-light.png" alt="Fensu" width="148" height="30">
+            <img class="logo-dark" src="assets/logo-dark.png" alt="Fensu" width="148" height="30">
+          </a>
+          <a class="brand-byline" href="https://sqlstack.io">by SQLStack</a>
+        </div>
         <nav aria-label="Main">
           <a class="hide-sm" href="#how">How it works</a>
           <a href="/docs/">Docs</a>
@@ -116,7 +119,17 @@
         <section class="closing" aria-labelledby="closing-title"><h2 id="closing-title">Make architecture part of every change.</h2><div class="actions"><a class="button primary" href="/docs/quickstart/">Get started</a><a class="button" href="/docs/">Read the docs</a></div><p>Open source · Apache-2.0 · Python 3.12+</p></section>
       </div>
     </main>
-    <footer class="wrap"><span>Fensu</span><nav aria-label="Footer"><a href="/docs/">Docs</a><a href="https://github.com/sqlstack-io/fensu">GitHub</a><a href="https://pypi.org/project/fensu/">PyPI</a></nav></footer>
+    <footer class="wrap">
+      <div class="footer-main"><span>Fensu</span><nav aria-label="Footer"><a href="/docs/">Docs</a><a href="https://github.com/sqlstack-io/fensu">GitHub</a><a href="https://pypi.org/project/fensu/">PyPI</a></nav></div>
+      <div class="sqlstack-family">
+        <a class="sqlstack-brand" href="https://sqlstack.io">
+          <img class="sqlstack-light" src="assets/sqlstack.png" alt="" width="28" height="23">
+          <img class="sqlstack-dark" src="assets/sqlstack-dark.png" alt="" width="28" height="23">
+          <span>Part of SQLStack</span>
+        </a>
+        <nav aria-label="SQLStack tools"><a href="https://sqlbuild.com">SQLBuild</a><a href="https://sqlclean.io">SQLClean</a><a href="https://docs.streambuild.dev">SQLTide</a><a href="/">Fensu</a></nav>
+      </div>
+    </footer>
     <p class="sr-only" role="status" id="copy-status"></p>
   </body>
 </html>

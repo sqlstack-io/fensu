@@ -32,6 +32,7 @@ export default defineConfig({
       PageTitle: './src/components/PageTitle.astro',
       SiteTitle: './src/components/SiteTitle.astro',
       Pagination: './src/components/Pagination.astro',
+      Footer: './src/components/Footer.astro',
       ThemeSelect: './src/components/ThemeSelect.astro',
     },
     customCss: ['./src/styles/fonts.css', './src/styles/fensu.css'],

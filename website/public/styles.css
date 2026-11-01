@@ -57,7 +57,9 @@ h3 { font-size: 20px; font-weight: 700; letter-spacing: -0.025em; }
 .sr-only, .skip-link:not(:focus) { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .skip-link:focus { position: fixed; top: 8px; left: 8px; z-index: 20; padding: 12px 16px; background: var(--bg); }
 .site-header { position: sticky; top: 0; z-index: 10; background: var(--bg); border-bottom: 1px solid var(--faint-line); }
-.header-inner { display: flex; align-items: center; justify-content: space-between; height: 60px; gap: 24px; }
+.header-inner { display: flex; align-items: center; justify-content: space-between; height: 80px; gap: 24px; }
+.brand-lockup { display: grid; flex: none; }
+.brand-byline { display: flex; align-items: center; min-height: 24px; margin-inline-start: 44%; color: var(--muted); font-size: 11px; line-height: 14px; text-decoration: none; white-space: nowrap; }
 .brand { display: inline-flex; flex: none; }
 .brand img { height: 30px; width: auto; }
 .brand .logo-dark, .icon-sun { display: none; }
@@ -123,10 +125,19 @@ figcaption { color: var(--muted); font-size: 14px; }
 .closing h2 { font-size: clamp(26px, 2.7vw, 32px); }
 .closing .actions { justify-content: center; margin-top: 20px; }
 .closing p { color: var(--muted); font-size: 12px; margin-top: 18px; }
-footer.wrap { display: flex; justify-content: space-between; align-items: center; padding-block: 20px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; }
+footer.wrap { padding-block: 20px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; }
+.footer-main, .sqlstack-family { display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+.sqlstack-family { flex-wrap: wrap; margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--faint-line); }
+.sqlstack-brand { display: inline-flex; align-items: center; gap: 10px; color: var(--muted); text-decoration: none; }
+.sqlstack-brand img { width: 28px; height: auto; }
+.sqlstack-dark, [data-theme='dark'] .sqlstack-light { display: none; }
+[data-theme='dark'] .sqlstack-dark { display: block; }
 footer nav { font-size: 13px; }
+.sqlstack-family nav { flex-wrap: wrap; gap: 8px 20px; }
+.sqlstack-family nav a { color: var(--muted); }
 @media (hover: hover) {
   nav a:hover { text-decoration-color: var(--orange); }
+  .brand-byline:hover, .sqlstack-brand:hover { color: var(--fg); text-decoration: underline; }
   .nav-icon:hover, .theme-toggle:hover { color: var(--fg); }
   .button:hover, .copy:hover { border-color: var(--link); }
   .primary:hover { background: var(--link); color: var(--bg); }

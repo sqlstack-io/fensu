@@ -4,10 +4,13 @@ import logoLight from '../assets/logo-light.png';
 ---
 
 <div class="site-title">
-	<a class="logo" href="/" aria-label="Fensu home">
-		<img class="logo-for-light" src={logoLight.src} alt="Fensu" width={148} height={30} />
-		<img class="logo-for-dark" src={logoDark.src} alt="Fensu" width={148} height={30} />
-	</a>
+	<div class="brand-lockup">
+		<a class="logo" href="/" aria-label="Fensu home">
+			<img class="logo-for-light" src={logoLight.src} alt="Fensu" width={148} height={30} />
+			<img class="logo-for-dark" src={logoDark.src} alt="Fensu" width={148} height={30} />
+		</a>
+		<a class="brand-byline" href="https://sqlstack.io">by SQLStack</a>
+	</div>
 	<a class="docs" href="/docs/">Docs</a>
 </div>
 
@@ -18,6 +21,27 @@ import logoLight from '../assets/logo-light.png';
 		align-items: center;
 		gap: 12px;
 		min-width: 0;
+	}
+
+	.brand-lockup {
+		display: grid;
+	}
+
+	.brand-byline {
+		display: flex;
+		align-items: center;
+		min-height: 24px;
+		margin-inline-start: 44%;
+		color: var(--sqb-muted);
+		font-size: 11px;
+		line-height: 14px;
+		text-decoration: none;
+		white-space: nowrap;
+	}
+
+	.brand-byline:hover {
+		color: var(--sqb-fg);
+		text-decoration: underline;
 	}
 
 	.logo {
