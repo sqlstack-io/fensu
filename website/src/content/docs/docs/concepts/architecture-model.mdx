@@ -80,10 +80,10 @@ names and enforces what each may contain and where it may live.
 | `main/` | Package | Published entry surfaces and orchestrator functions. |
 | `_helpers/` | Package | Phase functions supporting the orchestrators. |
 | `classes/` | Package | One class per module. |
-| `models.py` | File | Data model declarations (frozen dataclasses). |
-| `types.py` | File | Type declarations and aliases. |
-| `constants.py` | File | Constant declarations. |
-| `exceptions.py` | File | Exception class declarations. |
+| `models.py` or `models/` | File or package | Data model declarations (frozen dataclasses). |
+| `types.py` or `types/` | File or package | Type declarations and aliases. |
+| `constants.py` or `constants/` | File or package | Constant declarations. |
+| `exceptions.py` or `exceptions/` | File or package | Exception class declarations. |
 
 The underscore in `_helpers/` means private to its owner, not unimportable. A
 `main/` entry importing its own `_helpers/` implementation is the intended pattern;
@@ -94,6 +94,13 @@ another owner reaching into that package is not. The semantic role name remains
 These roles are Fensu's opinion and are fixed. A role file may hold only what its
 role permits: a declaration that belongs in `models.py` may not live elsewhere, and
 `models.py` may not hold unrelated code.
+
+Declaration role packages enforce the same content rules as their file forms:
+`models/record.py` belongs to the models role, including its immutability rule.
+Their nested `__init__.py` files remain empty or docstring-only (`FFR402`), and
+internal re-export shims remain forbidden (`FFR403`). Import declarations from
+their defining modules; a supported root public facade can preserve public imports
+without adding a role-package barrel.
 
 Ownership follows the role boundary: everything before a module's first role
 segment is its **owner**. Imports within one owner are free (`main/` calling its
@@ -122,7 +129,7 @@ flat top level.
   ownership root.
 - A **leaf domain** holds the actual work directly: `main/`, `_helpers/`,
   `classes/`, and the role files (`models.py`, `types.py`, `constants.py`,
-  `exceptions.py`).
+  `exceptions.py`) or their equivalent declaration role packages.
 - A **branch domain** holds only named **subdomains**, each of which is itself
   built from the roles.
 

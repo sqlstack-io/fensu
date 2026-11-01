@@ -50,10 +50,11 @@ fn resolve_ownership_roots(
                 ));
             };
             let relative = relative_ownership_path(&path, source_root);
-            if relative
-                .split('/')
-                .any(|part| STRUCTURAL_ROLE_DIRECTORIES.contains(&part))
-            {
+            if relative.split('/').any(|part| {
+                STRUCTURAL_ROLE_DIRECTORIES.contains(&part)
+                    || config.analyzer == AnalyzerId::Python
+                        && matches!(part, "models" | "types" | "constants" | "exceptions")
+            }) {
                 return Err(format!(
                     "Configured ownership root crosses a role directory: {pattern}"
                 ));

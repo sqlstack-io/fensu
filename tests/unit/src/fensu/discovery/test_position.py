@@ -17,6 +17,10 @@ from fensu.discovery._helpers.position import (
 )
 from fensu.discovery.main.discover_files import discover_files
 from fensu.discovery.models import DiscoveredTree, ScopedFile
+from fensu.evaluation.constants import PYTHON_REPOSITORY_FACT_SCHEMA_VERSION
+from fensu.rules.authoring.main.build_project_tree import build_project_tree
+from fensu.rules.authoring.main.build_python_repository_facts import build_python_repository_facts
+from fensu.rules.authoring.models import FilePosition, ProjectPath
 from tests.unit.src.fensu.discovery._test_types import (
     MainModuleTestCase,
     MixedOwnershipRootTestCase,
@@ -60,6 +64,46 @@ from tests.unit.src.fensu.discovery.helpers import make_config, only_file, write
             expected_domain="config",
             expected_subdomain="core",
             expected_role="classes",
+        ),
+        PositionFactTestCase(
+            description="models directory has the same role as its file form",
+            file_path="src/pkg/config/models/declarations.py",
+            expected_relative_parts=("config", "models", "declarations.py"),
+            expected_domain="config",
+            expected_subdomain=None,
+            expected_role="models",
+        ),
+        PositionFactTestCase(
+            description="role filenames retain precedence inside declaration role directories",
+            file_path="src/pkg/config/models/constants.py",
+            expected_relative_parts=("config", "models", "constants.py"),
+            expected_domain="config",
+            expected_subdomain=None,
+            expected_role="constants",
+        ),
+        PositionFactTestCase(
+            description="types directory has the same role as its file form",
+            file_path="src/pkg/config/types/declarations.py",
+            expected_relative_parts=("config", "types", "declarations.py"),
+            expected_domain="config",
+            expected_subdomain=None,
+            expected_role="types",
+        ),
+        PositionFactTestCase(
+            description="constants directory has the same role as its file form",
+            file_path="src/pkg/config/constants/declarations.py",
+            expected_relative_parts=("config", "constants", "declarations.py"),
+            expected_domain="config",
+            expected_subdomain=None,
+            expected_role="constants",
+        ),
+        PositionFactTestCase(
+            description="exceptions directory has the same role as its file form",
+            file_path="src/pkg/config/exceptions/declarations.py",
+            expected_relative_parts=("config", "exceptions", "declarations.py"),
+            expected_domain="config",
+            expected_subdomain=None,
+            expected_role="exceptions",
         ),
         PositionFactTestCase(
             description="plain module has no role",
@@ -113,6 +157,32 @@ def test_given_scoped_file_when_reading_position_then_returns_expected_facts(
     assert domain(scoped_file) == test_case.expected_domain
     assert subdomain(scoped_file) == test_case.expected_subdomain
     assert role_of(scoped_file) == test_case.expected_role
+
+    _, native_tree, _ = build_python_repository_facts(
+        payload={
+            "schema_version": PYTHON_REPOSITORY_FACT_SCHEMA_VERSION,
+            "parser_contract": "python-test",
+            "files": [
+                {
+                    "path": test_case.file_path,
+                    "scope": "root",
+                    "scope_root": "src/pkg",
+                    "relative_parts": list(scoped_file.relative_parts),
+                    "ownership_root": None,
+                    "ownership_root_declaration": None,
+                    "ownership_relative_parts": list(scoped_file.ownership_parts()),
+                    "purpose": "runtime",
+                    "source": "",
+                }
+            ],
+        },
+        subjects=[{"path": test_case.file_path}],
+    )
+    path: ProjectPath = ProjectPath(test_case.file_path)
+    native_position: FilePosition | None = native_tree.position(path)
+    python_position: FilePosition | None = build_project_tree(tree=tree).position(path)
+    assert native_position is not None and python_position is not None
+    assert native_position.role == python_position.role == test_case.expected_role
 
 
 @pytest.mark.parametrize(

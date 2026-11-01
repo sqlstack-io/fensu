@@ -326,6 +326,13 @@ def test_given_ambiguous_or_external_layout_when_discovering_then_reports_config
             expected_error_fragment="crosses a role directory",
         ),
         OwnershipRootErrorTestCase(
+            description="ownership roots cannot cross a declaration role directory",
+            ownership_roots=("src/pkg/orders/models",),
+            directories=("src/pkg/orders/models",),
+            files=("src/pkg/orders/models/record.py",),
+            expected_error_fragment="crosses a role directory",
+        ),
+        OwnershipRootErrorTestCase(
             description="ownership roots must contain analyzable files",
             ownership_roots=("src/pkg/runtime",),
             directories=("src/pkg/runtime",),

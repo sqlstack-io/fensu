@@ -7,6 +7,101 @@ use crate::test_types::{
 };
 
 #[test]
+fn given_declaration_role_directories_when_checking_then_enforces_file_equivalent_policy() {
+    let test_cases = [
+        NativeRulePackTestCase {
+            description: "declarations in all four role directories are recognized",
+            config: "select = ['FFR101', 'FFR102', 'FFR103', 'FFR104']\n",
+            expected_exit_code: 0,
+            expected_output: "Found 0 faults",
+        },
+        NativeRulePackTestCase {
+            description: "mutable models retain their immutability policy",
+            config: "select = ['FFS201']\n",
+            expected_exit_code: 1,
+            expected_output: "models/context.py:3:0",
+        },
+        NativeRulePackTestCase {
+            description: "an exact file exception permits a declaration-only mutable context",
+            config: "select = ['FFS201']\n[[rule_exceptions]]\nrule = 'FFS201'\npath = 'src/pkg/orders/models/context.py'\nreason = 'Invocation-local progress is committed by the native coordinator.'\n",
+            expected_exit_code: 0,
+            expected_output: "Found 0 faults",
+        },
+        NativeRulePackTestCase {
+            description: "model packages cannot contain behavior",
+            config: "select = ['FFR001']\n",
+            expected_exit_code: 1,
+            expected_output: "models/behavior.py:1:0",
+        },
+        NativeRulePackTestCase {
+            description: "model packages cannot contain runtime statements",
+            config: "select = ['FFR001']\n",
+            expected_exit_code: 1,
+            expected_output: "models/runtime.py:1:0",
+        },
+        NativeRulePackTestCase {
+            description: "model package initializers must still be empty",
+            config: "select = ['FFR402']\n",
+            expected_exit_code: 1,
+            expected_output: "models/__init__.py:0:0",
+        },
+        NativeRulePackTestCase {
+            description: "model package modules cannot become reexport shims",
+            config: "select = ['FFR403']\n",
+            expected_exit_code: 1,
+            expected_output: "models/exports.py:0:0",
+        },
+        NativeRulePackTestCase {
+            description: "ownership roots cannot cross a declaration role directory",
+            config: "select = []\nownership_roots = ['src/pkg/orders/models']\n",
+            expected_exit_code: 2,
+            expected_output: "ownership root crosses a role directory",
+        },
+    ];
+    for test_case in test_cases {
+        let repository = tempfile::tempdir().expect("declaration role repository");
+        write(
+            repository.path().join("fensu.toml"),
+            &format!(
+                "roots = ['src/pkg']\ntests = []\ntooling = []\n{}",
+                test_case.config
+            ),
+        );
+        for (path, source) in [
+            ("models/record.py", "from dataclasses import dataclass\n@dataclass(frozen=True)\nclass Record:\n    value: int\n"),
+            ("models/context.py", "from dataclasses import dataclass\n@dataclass(kw_only=True)\nclass Context:\n    cursor: str | None\n"),
+            ("models/behavior.py", "def execute() -> None:\n    print('work')\n"),
+            ("models/runtime.py", "print('work')\n"),
+            ("models/constants.py", "MAX_RECORDS: int = 10\n"),
+            ("models/__init__.py", "from .record import Record\n__all__ = ('Record',)\n"),
+            ("models/exports.py", "from .record import Record\n__all__ = ('Record',)\n"),
+            ("types/identifier.py", "type Identifier = str\n"),
+            ("constants/limits.py", "MAX_ITEMS: int = 10\n"),
+            ("exceptions/invalid.py", "class InvalidInput(Exception):\n    pass\n"),
+        ] {
+            write(repository.path().join("src/pkg/orders").join(path), source);
+        }
+        let output = run_check(repository.path());
+        let text = format!(
+            "{}{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert_eq!(
+            output.status.code(),
+            Some(test_case.expected_exit_code),
+            "{}: {text}",
+            test_case.description
+        );
+        assert!(
+            text.contains(test_case.expected_output),
+            "{}: {text}",
+            test_case.description
+        );
+    }
+}
+
+#[test]
 fn given_selected_target_with_stale_skill_when_checking_then_cached_and_uncached_paths_warn() {
     let test_cases = [TargetSkillFreshnessTestCase {
         description: "selected target reaches skill freshness on fresh and cached checks",
