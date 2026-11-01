@@ -24,6 +24,11 @@ and configuration. Legacy Python callbacks may ignore the context and walk their
 Backend-neutral semantic facts for the current file, computed once and shared by all
 rules through a single traversal.
 
+The semantic fact contracts and author-facing models are public Python APIs;
+production fact extraction is owned by the native Rust implementation. Raw Python
+AST, syntax, and relation artifacts remain lazy CPython capabilities, materialized
+only when a custom rule needs those surfaces.
+
 | Call | Returns | Purpose |
 | --- | --- | --- |
 | `annotations()` | `AnnotationFacts` | Missing parameter, return, local, and variable annotations. |

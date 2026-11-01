@@ -1,380 +1,127 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/sqlstack-io/fensu/main/.github/fensu-logo-wide.png" alt="Fensu" width="100%">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="website/public/assets/logo-dark.png">
+    <img src="website/public/assets/logo-light.png" alt="Fensu" width="280">
+  </picture><br>
+  <sub>by <a href="https://sqlstack.io">SQLStack</a></sub>
 </p>
 
-<p align="center">
-  Keeping Python, TypeScript, JavaScript, Svelte, and Rust repos from turning into spaghetti.
-</p>
+Fensu checks repository architecture: **import boundaries, module roles, and function
+shape** for Python, Rust, TypeScript, JavaScript, and Svelte.
 
-<p align="center"><em>Fensu means "fence" in Japanese.</em></p>
+- **Boundaries:** stop one domain from importing another domain’s private helpers.
+- **Roles:** keep entry points, helpers, models, and types in their owning modules.
+- **Function shape:** keep orchestrators small, dataflow explicit, and signatures clear.
 
-**Most linters catch bad code inside files. Fensu catches architectural drift:
-code crossing the wrong boundary, living in the wrong module, or growing into the
-wrong shape.**
+## Get started
 
-As a repository grows, code moves, lessons get forgotten, and the mental map
-decays. Tests preserve behavior and types preserve interfaces. Fensu makes the
-repository's architectural expectations executable.
-
-Fensu enforces:
-
-- which layers may import which;
-- what each module or role file may contain;
-- whether orchestrator functions stay small;
-- whether dataflow and mutation are explicit;
-- whether names such as `validate_*` mean what they claim.
-
-It ships a coherent default architecture rather than a blank rule framework, then
-lets projects disable, extend, or replace parts deliberately.
-
-Fensu is functional and self-hosting, but remains pre-release.
-
-## Installation
+Requires **Python 3.12+**. Install in your project’s Python environment:
 
 ```bash
 pip install fensu
 ```
 
-The authoring/API distribution is `fensu`. It installs the lockstep
-`fensu-cli` binary package, which exclusively owns the `fensu` command.
-Core-only `check`, `dupes`, `init`, `rule`, `map`, `skills`, and `--version`
-execution is native. Configured Python custom rules launch one compatible Python
-host only for the policy metadata or callbacks they require.
-
-Built-in commands are available only through the native `fensu` executable;
-`python -m fensu` is retired. Installing `fensu-cli` from its source
-distribution requires Rust 1.95 or newer.
-
-Fensu requires Python 3.12+ and includes a compiled analysis core. Prebuilt
-wheels cover Linux (x86_64, aarch64), macOS (Intel, Apple silicon), and Windows
-(x86_64). On other platforms, `pip` builds from source and requires a Rust
-toolchain at version 1.95 or newer.
-
-## Quick Start
-
-From the directory containing an existing repository's `pyproject.toml`, detect
-the layout, write a validated configuration with the full ruleset enabled, run an
-initial check, and install repository-local agent guidance:
+From an existing Python repository’s `pyproject.toml` directory:
 
 ```bash
 fensu init --yes
-```
-
-For an empty repository, provide the package name to scaffold `src/` and `tests/`:
-
-```bash
-fensu init --yes --name my_package
-```
-
-Pass `--no-skills` only when automation explicitly requires configuration without
-repository-local guidance. Do not call onboarding complete until this succeeds:
-
-```bash
-fensu skills --check
-```
-
-Then run:
-
-```bash
 fensu check
 ```
 
-To configure manually instead, add a minimal `fensu.toml` at the repository root:
+`fensu init --yes` detects your project, creates `fensu.toml`, runs an initial check,
+and installs agent guidance. Existing configuration is preserved.
 
-```toml
-roots = ["src/my_package"]
+Run `fensu check` locally and in CI to enforce your policy. For established
+repositories, [adopt rules incrementally using explicit boundaries and exceptions](https://fensu.io/docs/adoption/).
+
+See the [quickstart](https://fensu.io/docs/quickstart/) for empty repositories,
+existing configuration, and language-specific setup.
+
+## A finding and its fix
+
+An order entry point importing inventory’s private helper crosses a domain boundary:
+
+```python
+# src/shop/orders/main/submit.py
+from shop.inventory._helpers.reserve import reserve
 ```
 
-`tests` defaults to `["tests"]`, `tooling` is optional, caching is enabled by
-default, and every rule family is on by default. Install and verify agent guidance
-after writing configuration manually:
-
-```bash
-fensu skills
-fensu skills --check
-fensu check
-```
-
-Product roots and tooling receive structural rules; tests receive test-convention
-and annotation rules.
-
-### Rust workspaces
-
-Rust rules run directly in the `fensu-rust` analyzer through the normal Fensu CLI.
-Configure a Cargo workspace in `fensu.toml`:
-
-```toml
-[targets.rust]
-analyzer = "rust"
-roots = ["crates"]
-tests = []
-tooling = []
-rule_packs = ["rust"]
-select = ["FPRS"]
-```
-
-Run `fensu check --target rust`. Cargo discovers workspace members, package names, and targets;
-use `roots = ["src"]` for a single-package repository. The Rust pack enables all 120 `FPRS*`
-rules, covering layout, imports, dependency boundaries, naming, function shape, hygiene, and
-test conventions. Existing structural thresholds are the defaults.
-
-Adjust individual rules in the same file:
-
-```toml
-[targets.rust.rule_options.FPRSS010]
-max_arguments = 8
-```
-
-Selection, warnings, ignores, file exceptions, and caching use the usual Fensu settings.
-Cargo manifests, the lockfile when present, Rust sources, and target configuration participate
-in cache identity. Analysis does not create or update a lockfile.
-See [Rust analyzer configuration](docs/rust.md) for rule options and tooling boundaries.
-
-Python projects can opt into [production dead-code enforcement](docs/dead-code.md) with
-`[dead_code] enabled = true`. Reachability faults cover module-level definitions and modules;
-reasoned roots describe dynamic entry mechanisms. Tests and `main/` placement are not roots.
-
-## Default Structure
-
-The default architecture follows SQLBuild Compiler Rules v0.101.1.
-
-Product code uses domain, optional subdomain, then role. Every leaf domain or
-subdomain owns meaningful behavior through a direct `main/` containing at least one
-entry module. Branch-domain parents do not need their own `main/`; their leaf
-subdomains do. Tests mirror the code they cover; tooling uses one ownership level
-because `scripts/` already establishes the outer boundary.
+Excerpt from a real `fensu check --no-color` run with `FFL102` selected:
 
 ```text
-src/my_package/
-└── domain/
-    └── subdomain/
-        ├── main/
-        │   └── run.py
-        ├── _helpers/
-        ├── classes/
-        ├── models.py
-        ├── types.py
-        ├── constants.py
-        └── exceptions.py
-tests/unit/src/my_package/domain/subdomain/
-├── _test_types.py
-└── test_run.py
-scripts/
-├── run_tool.py
-└── tool_name/
-    ├── main/
-    ├── _helpers/
-    └── classes/
+FFL102  import 'shop.inventory._helpers.reserve' reaches into internal structure of 'shop.inventory'
+ --> src/shop/orders/main/submit.py:1:0
+  = help: Import from classes, models, types, constants, exceptions, or a thin main/ entry.
 ```
 
-Do not create an empty or initializer-only `main/` to satisfy the layout. If a
-package contains only passive models, types, constants, exceptions, or classes,
-move those declarations into the closest domain or subdomain whose `main/` behavior
-owns and uses them. Fixed role files are siblings of `_helpers/`, never descendants
-such as `_helpers/entry/models.py`.
+Publish the operation through inventory’s thin `main/` entry, then import that
+public surface instead:
 
-Direct `scripts/*.py` files are thin command adapters. Supporting logic belongs
-under `scripts/<tool>/<role>/`.
-
-Targets may declare path-scoped ownership roots when domains begin at different physical depths.
-The first package below each matched ownership root is a domain; the next non-role package is its
-optional subdomain. Without this setting, each Python source root, Cargo source root, or web
-`lib/` directory is the ownership root:
-
-```toml
-[targets.app]
-analyzer = "python"
-roots = ["src/example"]
-ownership_roots = [
-  "src/example/sources/*",
-  "src/example/runtime",
-]
+```python
+from shop.inventory.main.reserve import reserve
 ```
+
+That change clears this boundary finding; it does not disable the rule. Inspect a
+diagnostic’s full contract and settings with `fensu rule FFL102`.
+
+## The default layout
+
+A Python domain owns its behavior and vocabulary:
 
 ```text
-src/example/
-├── sources/
-│   ├── region_a/
-│   │   ├── orders/main/process.py
-│   │   └── partners/importing/main/load.py
-│   └── region_b/
-│       └── inventory/main/refresh.py
-└── runtime/
-    ├── scraping/main/collect.py
-    └── observability/main/report.py
+src/shop/
+└── inventory/
+    ├── main/           # public entry points and orchestration
+    │   └── reserve.py
+    ├── _helpers/       # private implementation phases
+    ├── classes/        # one class per module
+    ├── models.py       # data models
+    ├── types.py        # type declarations
+    ├── constants.py
+    └── exceptions.py
 ```
 
-Here each directory matched by `sources/*` and the explicit `runtime/` directory establishes an
-ownership root. `orders`, `partners`, `inventory`, `scraping`, and `observability` are domains;
-`importing` is a subdomain. The most-specific matching ownership root wins. Structural directories
-above and including an ownership root cannot contain role files or role directories directly.
-Mirrored tests inherit the production ownership root they cover. Rust, TypeScript, and Svelte use
-the same path-scoped model. Declarations must resolve beneath a configured runtime source, select
-analyzable files, and own at least one effective path after more-specific matches are applied.
+A leaf needs meaningful `main/` behavior, not an empty placeholder. Domains can
+split into named subdomains; tests mirror the code they cover. Tooling has its own
+scope. See the [architecture model](https://fensu.io/docs/concepts/architecture-model/)
+for complete role contracts, layouts, and defaults.
 
-## Core Commands
+## Explore the repository
 
-```bash
-fensu init
-fensu check
-fensu rule FFS131
-fensu map run_plan --depth 3
-fensu dupes --since origin/main
-```
+| Command | Purpose |
+| --- | --- |
+| `fensu rule FFL102` | Explain a rule and its effective settings. |
+| `fensu map submit --root src --depth 2` | Show proven static Python calls, without running the program. |
+| `fensu dupes --since origin/main --diff` | Review changed duplicated-code clusters; advisory, not a blocking check. |
+| `fensu skills --check` | Verify installed guidance matches the current policy. |
 
-`fensu init` detects and validates an onboarding configuration, `fensu check`
-enforces the configured architecture, `fensu rule` explains one rule and its
-remediation, `fensu dupes` reports duplicated code as advisory review input, and
-`fensu map` renders a conservative project call tree. Downstream
-mapping is the default; `--direction upstream` shows proven callers. Mapping
-follows project functions and class methods when imports,
-annotations, constructors, or return types prove the receiver. Unique protocol
-dispatch can resolve to one concrete implementation; ambiguous protocols and
-untyped parameters remain visible as unresolved dispatch seams rather than guessed
-implementations. Mapping does not require Fensu
-configuration or rule adoption.
-
-`fensu check` stores disposable evaluation results in a repository-local
-SQLite database under `.fensu/cache/`
-and reuses them only after validating source, configuration, rule, implementation,
-and project-query inputs. Caching is enabled by default; set `cache.enabled = false`
-in configuration or pass `--no-cache` for an explicit uncached check. `--cache`
-overrides a disabled project preference for one invocation.
-Deleting `.fensu/cache/` is always safe; ignore that directory rather than the
-complete `.fensu/` namespace, which is reserved for other Fensu-owned state.
-
-## Duplicated Code
-
-`fensu dupes` reports concrete duplicated code across the configured targets: ranked
-clusters of exact, renamed, and near-miss function-level copies in Python, Rust,
-TypeScript, JavaScript, and Svelte. It is advisory. It exits 0 whenever analysis
-succeeds, whatever it finds, and exits 2 only for usage, configuration, or IO errors.
-
-```text
-$ fensu dupes --since origin/main --diff
-fensu dupes: 1 duplicated-code cluster changed since origin/main (advisory; duplicated-code findings to review, not fensu check failures)
-analysed python 212 units; 0 allowlisted pairs hidden; 0 contract-exempt members hidden
-  1. near-miss sim 0.98, ~111 duplicated tokens, 2 members
-     src/shop/orders/summary.py:1-15 summarize_orders (113 tokens)
-     src/shop/reports/summary.py:1-16 summarize_orders (118 tokens) [changed]
-     diff src/shop/orders/summary.py:1-15 vs src/shop/reports/summary.py:1-16
-       + 9: log_progress(count)
-```
-
-See [duplicated-code detection](docs/dupes.md) for options, `[dupes]` configuration,
-and contract exemptions.
-
-## Enforce It, Then See It
-
-Because Fensu enforces the structure, it can also render it. `fensu map`
-produces a deterministic call tree with clickable `path:line` locations,
-class-qualified method names, and explicit protocol seams while marking unresolved
-dynamic calls, depth limits, and cycles. Downstream walks follow proven callees;
-upstream walks invert those proven edges and omit callers Fensu cannot resolve.
-
-```text
-$ fensu map run_map --depth 4
-
-run_map(...)  src/fensu/cli/main/map.py:21
-├── _parser(...)  src/fensu/cli/main/map.py:53
-├── resolve_mapping_project(...)  src/fensu/mapping/main/resolve_project.py:11
-│   └── resolve_mapping_project(...)  src/fensu/mapping/_helpers/project.py:15
-│       ├── _find_project_root(...)  src/fensu/mapping/_helpers/project.py:73
-│       ├── _explicit_source(...)  src/fensu/mapping/_helpers/project.py:65
-│       ├── _optional_config_source(...)  src/fensu/mapping/_helpers/project.py:38
-│       │   └── find_config_source(...)  src/fensu/config/main/find_config.py:12  (depth limit)
-│       └── _configured_project(...)  src/fensu/mapping/_helpers/project.py:45
-│           ├── load_config(...)  src/fensu/config/main/load_config.py:15  (depth limit)
-│           └── _configured_source(...)  src/fensu/mapping/_helpers/project.py:57
-└── build_call_map(...)  src/fensu/mapping/main/build.py:12
-    ├── provider(...)  src/fensu/mapping/main/build.py:24  (unresolved parameter call)
-    └── render_tree(...)  src/fensu/mapping/_helpers/render.py:19
-        ├── _child_lines(...)  src/fensu/mapping/_helpers/render.py:41
-        │   └── _child_lines(...)  src/fensu/mapping/_helpers/render.py:41  (cycle)
-        └── _label(...)  src/fensu/mapping/_helpers/render.py:88
-```
-
-The map is useful precisely because it is not guessing. `fensu check` enforces
-layers, roles, and public surfaces first, and `fensu map` then renders the
-structure the code is required to expose.
-
-## Philosophy
-
-Fensu is strict by default wherever it can make an honest deterministic claim.
-Following the rules should remove repeated architectural decisions from everyday
-work. Deliberate differences belong in selection, configuration, or custom rules,
-where they remain visible, rather than in scattered inline suppressions.
-
-Unavoidable external calling conventions can use exact symbol-scoped exceptions:
-
-```toml
-[[rule_exceptions]]
-rule = "FFS120"
-path = "src/my_package/integrations/_helpers/callbacks.py"
-symbols = ["ProgressCollector.update"]
-reason = "The external API invokes this callback positionally."
-```
-
-Exceptions accept one exact rule code, repository-relative source file, and optionally one
-or more qualified symbols. Python and web symbols use dotted names such as `Class.method`; Rust
-symbols use item paths such as `parse`, `Record`, `Record::load`, or `inner::parse` (see
-[Rust](docs/rust.md#symbol-scoped-exceptions)). Without `symbols`, an exception covers the whole
-file; `Cargo.toml` exceptions are always file-level. Missing or ambiguous symbols are
-configuration errors. Globs, directories, line numbers, and inline suppression comments are not
-supported. `fensu check` rejects stale exceptions, and each listed symbol must still suppress a
-fault.
-
-For a justified rule/path intersection that is broader than one exact finding,
-keep the rules and project context active with `[[rule_ignores]]`:
-
-```toml
-[[rule_ignores]]
-rules = ["FFA", "XGENERATED"]
-paths = ["src/my_package/generated/**"]
-reason = "Generated interfaces are checked by their source schema."
-```
-
-One declaration must match both the finding's rule code and its reported path.
-Unlike exact exceptions, path-scoped ignores are not stale-checked.
-
-## Agent Skills
-
-Generate repository-aware guidance from the active ruleset:
-
-```bash
-fensu skills
-fensu skills --global
-```
-
-The generated skill includes Fensu usage, rule-supported architecture examples,
-navigation and work-handoff guidance, and every enabled core and custom rule.
-Existing user-authored skill files are preserved unless `--force` is supplied.
-
-## Custom Rules
-
-Custom checks use `X...` codes and the same `RuleContext` as core rules. Once
-configured, they participate in `fensu check`, `fensu rule`, and generated agent
-skills. Rules can declare typed `RuleOption` values, repositories can override them
-under `[rule_options.<CODE>]`, and checks read the validated current value through
-`ctx.option()`. Rules can also use `ctx.facts`, `ctx.project`, `ctx.text`, `ctx.syntax`, and
-`ctx.relations`; these are the same backend-neutral analysis zones used by Fensu's
-built-in rules. Project and filesystem reads made through `ctx.project` are tracked
-for cache invalidation. Raw `ast.Module` access remains available for checks that need
-unrestricted Python syntax traversal. Semantic fact contracts and author-facing models
-are public Python APIs, while their production extraction has one native Rust owner;
-raw AST, syntax, and relation artifacts remain lazy CPython capabilities. Keep
-project-owned checks in the canonical
-`scripts/fensu_policy/rules/` tooling role and load them explicitly:
-
-```toml
-tooling = ["scripts"]
-rule_paths = ["scripts/fensu_policy/rules"]
-```
-
-See the [custom-rule guide](https://docs.fensu.dev/concepts/custom-rules)
-for the complete API and configuration.
+Call mapping needs neither Fensu configuration nor rule adoption. It marks
+unresolved calls, cycles, and depth limits instead of guessing dynamic targets.
+See the [map reference](https://fensu.io/docs/cli/map/) and
+[duplicated-code guide](https://fensu.io/docs/concepts/duplicated-code/).
 
 ## Documentation
 
-The quickstart, architecture model, configuration reference, adoption guide, and
-CLI reference live at [docs.fensu.dev](https://docs.fensu.dev).
+[fensu.io/docs](https://fensu.io/docs/) is the full manual; the README is the starting point.
+
+| Start here | Reference |
+| --- | --- |
+| [Quickstart](https://fensu.io/docs/quickstart/) | Installation, initialization, and reading diagnostics. |
+| [Adoption](https://fensu.io/docs/adoption/) | Roll out enforcement safely on existing code. |
+| [Configuration](https://fensu.io/docs/concepts/configuration/) | Targets, ownership roots, selection, thresholds, exceptions, and ignores. |
+| [Architecture](https://fensu.io/docs/concepts/architecture-model/) | Roles, domain boundaries, tooling, and test layout. |
+| [Rust](https://fensu.io/docs/concepts/analyzers/rust/) · [Web](https://fensu.io/docs/concepts/analyzers/typescript-sveltekit/) | Analyzer-specific setup and rule packs. |
+| [CLI](https://fensu.io/docs/cli/) · [Agent guidance](https://fensu.io/docs/cli/skills/) | Commands, execution, and skill update safety. |
+| [Caching](https://fensu.io/docs/concepts/caching/) | Cache identities, controls, and safe cleanup. |
+| [Custom rules](https://fensu.io/docs/concepts/custom-rules/) · [RuleContext API](https://fensu.io/docs/reference/rule-context/) | Author, configure, and test project-specific policies. |
+
+[Python dead-code enforcement](docs/dead-code.md) has a separate repository guide
+covering reachability, explicit dynamic roots, and adoption caveats.
+
+## Part of SQLStack
+
+<picture><source media="(prefers-color-scheme: dark)" srcset="website/public/assets/sqlstack-dark.png"><img src="website/public/assets/sqlstack.png" alt="" width="24"></picture> Fensu is part of [SQLStack](https://sqlstack.io), a family of tools for data engineers.
+
+- [SQLBuild](https://sqlbuild.com) — SQL transformations with compile-time checks, end-to-end tests, and safe renames.
+- [SQLClean](https://sqlclean.io) — Fast SQL linting and deterministic formatting.
+- [SQLTide](https://docs.streambuild.dev) — Build, replay, and safely deploy ClickHouse streaming pipelines with SQL.

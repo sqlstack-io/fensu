@@ -46,7 +46,7 @@ domains begin below additional structural grouping directories.
 
 ## What it checks
 
-The `rust` pack exposes all 117 implemented rules under `FPRS`. The rules cover:
+The `rust` pack exposes all implemented rules under `FPRS`. The rules cover:
 
 - Cargo workspace and dependency policy;
 - module ownership, visibility, layout, and import boundaries;
@@ -62,9 +62,20 @@ warn = []
 ignore = ["FPRSH001"]
 ```
 
-Exact file exceptions and path-scoped ignores work as they do for other analyzers.
-Rust exceptions name a Rust source file or `Cargo.toml`; they do not use Python
-definition selectors. Inspect any rule and its effective settings with:
+Exact file exceptions and path-scoped ignores use the normal configuration keys.
+Rust exceptions name an exact `.rs` file or `Cargo.toml`. An exception without
+`symbols` covers the file, including findings owned by items; `Cargo.toml`
+exceptions must always be file-level.
+
+To narrow a Rust exception, use syntactic item paths within the source file:
+`parse`, `Record`, `Record::load`, or `inner::parse`, not Python-style dotted
+definition selectors. Modules and macro-generated items are not addressable;
+missing or ambiguous names are configuration errors. Each listed symbol must
+suppress a fault or the exception is stale. The
+[repository guide](https://github.com/sqlstack-io/fensu/blob/main/docs/rust.md#symbol-scoped-exceptions)
+details item spans, trait and implementation paths, and ambiguity restrictions.
+
+Inspect any rule and its effective settings with:
 
 ```bash
 fensu rule FPRSS010 --target rust
