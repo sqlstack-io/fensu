@@ -1,8 +1,8 @@
 use crate::helpers::{require_workspace_python, run_check, run_check_with, write};
 use crate::test_types::{
     InvalidCheckConfigTestCase, RustCacheTestCase, RustCheckTestCase,
-    RustCustomCacheInvalidationTestCase, RustCustomCoverageTestCase, RustCustomFileRuleTestCase,
-    RustCustomHostRoutingTestCase, RustCustomMalformedSourceTestCase,
+    RustCustomCacheInvalidationTestCase, RustCustomCoverageTestCase, RustCustomFailClosedTestCase,
+    RustCustomFileRuleTestCase, RustCustomHostRoutingTestCase, RustCustomMalformedSourceTestCase,
     RustCustomNarrowCacheTestCase, RustCustomPolicyTestCase, RustMetadataCacheTestCase,
 };
 
@@ -913,6 +913,83 @@ fn given_malformed_rust_when_custom_rule_reads_file_facts_then_parse_error_remai
         );
         assert!(
             !stdout.contains(test_case.expected_native_absent),
+            "{}: {stdout}",
+            test_case.description
+        );
+    }
+}
+
+#[test]
+fn given_unavailable_rust_facts_when_custom_rule_is_selected_then_check_fails_closed() {
+    let python = require_workspace_python!();
+    let package = "[package]\nname = \"example\"\nversion = \"0.1.0\"\nedition = \"2021\"\n";
+    let test_cases = [
+        RustCustomFailClosedTestCase {
+            description: "cargo cannot run",
+            manifest: package,
+            rule_suffix: "",
+            search_path: |empty| empty.as_os_str().to_owned(),
+            expected_error: "failed to start `cargo metadata`",
+        },
+        RustCustomFailClosedTestCase {
+            description: "workspace has Rust sources but no packages",
+            manifest: "[workspace]\nmembers = []\nresolver = \"2\"\n",
+            rule_suffix: "",
+            search_path: |_| std::env::var_os("PATH").unwrap_or_default(),
+            expected_error: "Rust analysis found 0 Rust files, but the target has 1",
+        },
+        RustCustomFailClosedTestCase {
+            description: "host reply exceeds the capture limit",
+            manifest: package,
+            rule_suffix: "import sys\nsys.stdout.write('x' * (17 * 1024 * 1024))\n",
+            search_path: |_| std::env::var_os("PATH").unwrap_or_default(),
+            expected_error: "stdout exceeded its 16777216-byte capture limit",
+        },
+    ];
+    for test_case in test_cases {
+        let repository = tempfile::tempdir().expect("temporary repository");
+        let empty_path = tempfile::tempdir().expect("empty search path");
+        write(repository.path().join("Cargo.toml"), test_case.manifest);
+        write(
+            repository.path().join("src/lib.rs"),
+            "pub struct LegacyThing;\n",
+        );
+        write(
+            repository.path().join("rules/custom.py"),
+            &format!(
+                "from fensu import AnalyzerId, Family, Fault, File, RuleContext, rule\n@rule(code='XRS006', family=Family.CUSTOM, slug='any-file', message='file seen', analyzers=(AnalyzerId.RUST,), cacheable=True)\ndef any_file(*, file: File, ctx: RuleContext) -> list[Fault]:\n    return [ctx.path_fault()] if ctx.rust.file(file) is not None else []\n{}",
+                test_case.rule_suffix
+            ),
+        );
+        write(
+            repository.path().join("fensu.toml"),
+            "[targets.rust]\nanalyzer = \"rust\"\nroots = [\"src\"]\ntests = []\ntooling = []\nrule_packs = [\"rust\"]\nrule_paths = [\"rules/custom.py\"]\nselect = [\"XRS006\"]\n",
+        );
+
+        let output = std::process::Command::new(env!("CARGO_BIN_EXE_fensu"))
+            .args(["check", "--no-color", "--no-cache"])
+            .current_dir(repository.path())
+            .env("FENSU_PYTHON", &python)
+            .env("PATH", (test_case.search_path)(empty_path.path()))
+            .env_remove("CARGO")
+            .output()
+            .expect("custom Rust check runs");
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let stderr = String::from_utf8_lossy(&output.stderr);
+
+        assert_eq!(
+            output.status.code(),
+            Some(2),
+            "{}: {stdout} {stderr}",
+            test_case.description
+        );
+        assert!(
+            stderr.contains(test_case.expected_error),
+            "{}: {stderr}",
+            test_case.description
+        );
+        assert!(
+            !stdout.contains("Found 0 faults"),
             "{}: {stdout}",
             test_case.description
         );

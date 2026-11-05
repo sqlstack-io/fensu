@@ -378,6 +378,23 @@ fn evaluate_rust_target(request: EvaluationRequest<'_>) -> Result<TargetEvaluati
         .iter()
         .map(|source| source.target_path.as_str())
         .collect::<HashSet<_>>();
+    let rust_source_count = source_paths
+        .iter()
+        .filter(|path| path.ends_with(".rs"))
+        .count();
+    if rust_source_count > 0 && analysis.facts.files.is_empty() {
+        let cause = analysis
+            .diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code == fensu_rust::METADATA_SETUP_CODE)
+            .map_or_else(
+                || "Cargo reported no workspace source files".to_owned(),
+                |diagnostic| diagnostic.message.clone(),
+            );
+        return Err(format!(
+            "Rust analysis found 0 Rust files, but the target has {rust_source_count}; no Rust rule can be evaluated. {cause}"
+        ));
+    }
     let mut faults: Vec<Fault> = Vec::new();
     for diagnostic in analysis.diagnostics {
         let diagnostic_path = diagnostic.path.to_string_lossy().replace('\\', "/");

@@ -235,3 +235,6 @@ lockfile.
 
 If Cargo metadata cannot be read, Fensu reports a setup diagnostic and does not cache
 the result. The result remains uncached even when rule selection hides that diagnostic.
+When the target has Rust sources but Cargo yields no source files, for example because
+`cargo` is not on `PATH` or the workspace has no packages, `fensu check` exits 2 with
+the cause instead of reporting a result.
