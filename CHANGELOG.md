@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.29.0](https://github.com/sqlstack-io/fensu/compare/v0.28.3...v0.29.0) (2026-11-05)
+
+
+### Features
+
+* **dupes:** add an opt-in --fail-on-new gate for new duplication ([#125](https://github.com/sqlstack-io/fensu/issues/125)) ([3b3e8ba](https://github.com/sqlstack-io/fensu/commit/3b3e8ba7ddcc57a4333db75c7a8f40d24805ad2c))
+
+
+### Documentation
+
+* **readme:** add restrained SQLStack branding ([#121](https://github.com/sqlstack-io/fensu/issues/121)) ([f34f8c8](https://github.com/sqlstack-io/fensu/commit/f34f8c88318e3975712e05c5f331b1a0ae242c46))
+
+
+### Maintenance
+
+* keep local agent guidance out of version control ([#124](https://github.com/sqlstack-io/fensu/issues/124)) ([38f8c80](https://github.com/sqlstack-io/fensu/commit/38f8c8066e416f4dbe60aac85dbb58ae4f170054))
+
 ## [0.28.3](https://github.com/sqlstack-io/fensu/compare/v0.28.2...v0.28.3) (2026-11-01)
 
 
