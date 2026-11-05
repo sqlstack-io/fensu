@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.29.1](https://github.com/sqlstack-io/fensu/compare/v0.29.0...v0.29.1) (2026-11-05)
+
+
+### Bug Fixes
+
+* **check:** fail closed when Rust analysis sees no source files ([#126](https://github.com/sqlstack-io/fensu/issues/126)) ([077800e](https://github.com/sqlstack-io/fensu/commit/077800e64be83d8a42eb3d8138d55ce8be01a8d7))
+
 ## [0.29.0](https://github.com/sqlstack-io/fensu/compare/v0.28.3...v0.29.0) (2026-11-05)
 
 
