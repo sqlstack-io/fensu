@@ -134,6 +134,14 @@ pub(crate) struct RustCustomNarrowCacheTestCase {
     pub(crate) expected_reused_message: &'static str,
 }
 
+pub(crate) struct RustCustomFailClosedTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) manifest: &'static str,
+    pub(crate) rule_suffix: &'static str,
+    pub(crate) search_path: fn(&std::path::Path) -> std::ffi::OsString,
+    pub(crate) expected_error: &'static str,
+}
+
 pub(crate) struct RustCustomMalformedSourceTestCase {
     pub(crate) description: &'static str,
     pub(crate) expected_exit_code: i32,
