@@ -17,7 +17,7 @@ Usage: fensu {init,check,dupes,rule,map,skills,target} ...
 Commands:
   init    Initialize Fensu configuration for a repository.
   check   Evaluate repository architecture rules.
-  dupes   Report duplicated code (advisory; never fails on findings).
+  dupes   Report duplicated code (advisory unless --fail-on-new).
   rule    Show details for one rule.
   map     Render a directional project call map.
   skills  Generate and install agent guidance.
@@ -67,7 +67,7 @@ fensu 0.4.0
 ## Exit codes
 
 Commands generally use `0` for success and `2` for usage, configuration, or setup
-errors. `fensu check` uses `1` for blocking faults, `fensu dupes` exits `0`
-whatever it finds, and
+errors. `fensu check` uses `1` for blocking faults, `fensu dupes` uses `1` only for
+new duplication under `--fail-on-new`, and
 `fensu skills --check` uses `1` when generated files need an update. See
 each command page for its complete contract.

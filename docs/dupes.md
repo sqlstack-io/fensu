@@ -1,8 +1,10 @@
 # Duplicated-code detection
 
-`fensu dupes` reports concrete duplicated code. It is an advisory review aid, not a gate:
+`fensu dupes` reports concrete duplicated code. By default it is an advisory review aid, not a gate:
 
 - It exits 0 whenever analysis succeeds, whatever it finds.
+- With `--since REV --fail-on-new` it exits 1 when a cluster not hidden by `[dupes]` touches lines
+  changed since `REV`, so it can block new copies without failing on existing ones.
 - It exits 2 for usage errors, invalid configuration, unknown `--since` revisions, and IO failures.
 - Unlike `fensu check`, its findings never need to reach zero. Treat each cluster as a hypothesis:
   consolidate genuine copies, and record intentional mirrors in `[dupes]` with a reason.
@@ -11,6 +13,7 @@
 fensu dupes                              # top 30 clusters for the whole repository
 fensu dupes --since origin/main          # only clusters touching lines changed since a revision
 fensu dupes --since origin/main --diff   # plus where the first two copies diverge
+fensu dupes --since origin/main --fail-on-new  # exit 1 on new, unlisted clusters
 fensu dupes --lang rust --top 10 --json
 ```
 
@@ -83,8 +86,9 @@ Each cluster shows its worst category, similarity range, duplicated-token estima
 `[forced]` marks contract-exempt members (below). `--diff` adds up to 12 differing lines between the
 first two members, which are visible (non-forced) members whenever the cluster has two.
 
-`--json` prints the same report as deterministic JSON: `command`, `advisory`, `since`,
-`unit_counts`, `allowlisted_pairs`, `contract_exempt_members`, `total_clusters`, and `clusters`.
+`--json` prints the same report as deterministic JSON: `command`, `advisory` (`false` under
+`--fail-on-new`), `since`, `unit_counts`, `allowlisted_pairs`, `contract_exempt_members`,
+`total_clusters`, and `clusters`.
 Each cluster has `rank`, `category`, `similarity_min`, `similarity_max`, `duplicated_tokens`,
 `members` (`language`, `path`, `name`, `start_line`, `end_line`, `tokens`, `changed`, `forced`),
 `links` between member indexes, and, with `--diff`, `diff` with differing `lines`
@@ -100,6 +104,7 @@ Each cluster has `rank`, `category`, `similarity_min`, `similarity_max`, `duplic
 | `--include-tests` | Also analyse test code. |
 | `--since REV` | Only clusters touching lines added or changed since `REV`, including uncommitted and untracked files. |
 | `--diff` | Show where the first two visible members diverge. |
+| `--fail-on-new` | Exit 1 when a cluster touches lines changed since `--since` (required). |
 | `--json` | Machine-readable output. |
 
 ## Configuration

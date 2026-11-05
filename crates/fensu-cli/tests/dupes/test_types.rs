@@ -43,3 +43,13 @@ pub(crate) struct JsonShapeTestCase {
     pub(crate) expected_member_keys: &'static [&'static str],
     pub(crate) expected_diff_lines: &'static [(u64, u64, &'static str)],
 }
+
+pub(crate) struct FailOnNewTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) config: String,
+    pub(crate) worktree: Vec<(&'static str, String)>,
+    pub(crate) arguments: &'static [&'static str],
+    pub(crate) expected_exit: i32,
+    pub(crate) expected_stdout: &'static str,
+    pub(crate) expected_stderr: &'static str,
+}

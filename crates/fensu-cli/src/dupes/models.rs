@@ -16,6 +16,7 @@ pub(crate) struct DupesOptions {
     pub(crate) include_tests: bool,
     pub(crate) since: Option<String>,
     pub(crate) diff: bool,
+    pub(crate) fail_on_new: bool,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -163,6 +164,7 @@ pub(crate) struct CloneCluster {
 #[derive(Clone, Debug)]
 pub(crate) struct DupesReport {
     pub(crate) since: Option<String>,
+    pub(crate) advisory: bool,
     pub(crate) unit_counts: BTreeMap<&'static str, usize>,
     pub(crate) allowlisted_pairs: usize,
     pub(crate) contract_exempt_members: usize,

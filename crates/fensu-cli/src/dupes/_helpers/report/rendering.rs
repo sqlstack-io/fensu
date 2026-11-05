@@ -8,6 +8,7 @@ use crate::dupes::models::{CloneCluster, CloneMember, DupesReport, MemberDiff};
 const INDENT: &str = "     ";
 const DIFF_INDENT: &str = "       ";
 const ADVISORY: &str = "advisory; duplicated-code findings to review, not fensu check failures";
+const GATED: &str = "--fail-on-new; each cluster touching changed lines fails the command";
 
 pub(crate) fn render_text(report: &DupesReport, top: usize) -> String {
     let scope = report
@@ -16,9 +17,10 @@ pub(crate) fn render_text(report: &DupesReport, top: usize) -> String {
         .map_or_else(String::new, |revision| format!(" changed since {revision}"));
     let mut lines = vec![
         format!(
-            "fensu dupes: {} duplicated-code cluster{}{scope} ({ADVISORY})",
+            "fensu dupes: {} duplicated-code cluster{}{scope} ({})",
             report.clusters.len(),
             if report.clusters.len() == 1 { "" } else { "s" },
+            if report.advisory { ADVISORY } else { GATED },
         ),
         summary_line(report),
     ];
@@ -72,7 +74,7 @@ pub(crate) fn render_json(report: &DupesReport, top: usize) -> Result<String, St
         .collect::<Result<Vec<_>, String>>()?;
     let payload = json!({
         "command": "dupes",
-        "advisory": true,
+        "advisory": report.advisory,
         "since": report.since,
         "unit_counts": report.unit_counts,
         "allowlisted_pairs": report.allowlisted_pairs,

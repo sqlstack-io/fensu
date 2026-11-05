@@ -188,12 +188,12 @@ fn given_invalid_configuration_or_arguments_when_running_dupes_then_errors_exit_
             expected_stderr: &["argument --lang: invalid choice: 'cobol'"],
         },
         CommandOutputTestCase {
-            description: "help documents the advisory exit contract",
+            description: "help documents the exit contract",
             config: with_dupes(""),
             files: copies(),
             arguments: &["--help"],
             expected_exit_code: 0,
-            expected_stdout: &["usage: fensu dupes", "Findings never fail the command"],
+            expected_stdout: &["usage: fensu dupes", "Findings fail the command only with\n--fail-on-new"],
             expected_stderr: &[],
         },
     ];

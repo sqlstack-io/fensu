@@ -74,7 +74,7 @@ it a concrete thing to argue with if it is wrong.
 The same standard is why duplicated code is reported, not enforced. Fensu can
 prove deterministically that two functions match. It cannot prove that they
 should be one, so [`fensu dupes`](/concepts/duplicated-code) presents the copies
-as evidence and never fails a build.
+as evidence. It fails a build only when you opt in to blocking new duplication.
 
 ## Not a style tool
 

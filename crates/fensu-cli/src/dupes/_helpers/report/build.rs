@@ -80,6 +80,7 @@ pub(crate) fn build_report(
     }
     Ok(DupesReport {
         since: options.since.clone(),
+        advisory: !options.fail_on_new,
         unit_counts,
         allowlisted_pairs: retained.len() - pairs.len(),
         contract_exempt_members: forced.difference(&retained_units).count(),
