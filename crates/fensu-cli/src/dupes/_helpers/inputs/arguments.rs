@@ -3,7 +3,7 @@
 use crate::dupes::constants::{DEFAULT_MIN_SIMILARITY, DEFAULT_MIN_TOKENS, DEFAULT_TOP, LANGUAGES};
 use crate::dupes::models::DupesOptions;
 
-const USAGE: &str = "usage: fensu dupes [-h] [--json] [--top TOP] [--min-similarity MIN_SIMILARITY]\n                   [--min-tokens MIN_TOKENS] [--lang LANG] [--path PATH]\n                   [--include-tests] [--since REV] [--diff]";
+const USAGE: &str = "usage: fensu dupes [-h] [--json] [--top TOP] [--min-similarity MIN_SIMILARITY]\n                   [--min-tokens MIN_TOKENS] [--lang LANG] [--path PATH]\n                   [--include-tests] [--since REV] [--diff]\n                   [--fail-on-new]";
 const MIN_SIMILARITY_EXCLUSIVE: f64 = 0.0;
 const MAX_SIMILARITY: f64 = 1.0;
 const MIN_COUNT: usize = 1;
@@ -28,6 +28,7 @@ pub(crate) fn parse_arguments(arguments: &[String]) -> Result<Option<DupesOption
         include_tests: false,
         since: None,
         diff: false,
+        fail_on_new: false,
     };
     let mut position = 0;
     while position < arguments.len() {
@@ -44,6 +45,7 @@ pub(crate) fn parse_arguments(arguments: &[String]) -> Result<Option<DupesOption
                 "--json" => options.json = true,
                 "--include-tests" => options.include_tests = true,
                 "--diff" => options.diff = true,
+                "--fail-on-new" => options.fail_on_new = true,
                 _ => return Err(usage_error(&format!("unrecognized arguments: {argument}"))),
             }
             position += 1;
@@ -60,6 +62,9 @@ pub(crate) fn parse_arguments(arguments: &[String]) -> Result<Option<DupesOption
         };
         options = apply_value(options, name, value)?;
         position += 1;
+    }
+    if options.fail_on_new && options.since.is_none() {
+        return Err(usage_error("argument --fail-on-new: requires --since"));
     }
     if options.languages.is_empty() {
         options.languages = LANGUAGES.to_vec();

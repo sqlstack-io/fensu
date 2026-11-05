@@ -281,11 +281,7 @@ fn custom_rule_coverage_faults(code: &str, context: &NativeRuleContext) -> Vec<N
             let mut parts = answer.split('\0');
             (parts.next()? == rule_code).then(|| {
                 (
-                    parts
-                        .next()
-                        .unwrap_or("0")
-                        .parse::<u32>()
-                        .map_or(0, |count| count),
+                    parts.next().unwrap_or("0").parse::<u32>().unwrap_or(0),
                     parts.next() == Some("true"),
                 )
             })

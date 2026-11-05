@@ -92,7 +92,7 @@ for complete role contracts, layouts, and defaults.
 | --- | --- |
 | `fensu rule FFL102` | Explain a rule and its effective settings. |
 | `fensu map submit --root src --depth 2` | Show proven static Python calls, without running the program. |
-| `fensu dupes --since origin/main --diff` | Review changed duplicated-code clusters; advisory, not a blocking check. |
+| `fensu dupes --since origin/main --diff` | Review changed duplicated-code clusters; advisory unless `--fail-on-new` is passed. |
 | `fensu skills --check` | Verify installed guidance matches the current policy. |
 
 Call mapping needs neither Fensu configuration nor rule adoption. It marks

@@ -24,7 +24,7 @@ from tests.e2e.src.fensu.cli.main.helpers import installed_fensu_executable
                 "Commands:\n"
                 "  init    Initialize Fensu configuration for a repository.\n"
                 "  check   Evaluate repository architecture rules.\n"
-                "  dupes   Report duplicated code (advisory; never fails on findings).\n"
+                "  dupes   Report duplicated code (advisory unless --fail-on-new).\n"
                 "  rule    Show details for one rule.\n"
                 "  map     Render a directional project call map.\n"
                 "  skills  Generate and install agent guidance.\n"

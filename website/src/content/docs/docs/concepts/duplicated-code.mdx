@@ -262,8 +262,9 @@ helper to be copied.
 
 ## What it is not
 
-- **Not a gate.** `fensu dupes` exits `0` whenever analysis succeeds. It never
-  fails CI on findings.
+- **Not a gate by default.** `fensu dupes` exits `0` whenever analysis succeeds.
+  Only [`--fail-on-new`](/cli/dupes#failing-on-new-duplication) fails CI, and only
+  on clusters touching changed lines.
 - **Not a zero target.** Findings never need to reach zero. A cluster is a
   hypothesis, and some clusters are correct as they are.
 - **Not a style metric.** There is no duplication score or percentage. Clusters

@@ -100,7 +100,8 @@ where a reviewer can see it, rather than scattered through the source. See
 ## Duplicated code in an existing repository
 
 [`fensu dupes`](/cli/dupes) is advisory, so you can add it on day one without
-changing what CI blocks. An established repository usually has a backlog of
+changing what CI blocks. When you want to stop new copies, add
+`--since origin/main --fail-on-new`, which leaves the existing backlog alone. An established repository usually has a backlog of
 copies. Treat that backlog as a record of past drift, not as a to-do list that
 must reach zero.
 

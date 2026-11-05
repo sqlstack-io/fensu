@@ -1,11 +1,11 @@
 ---
 title: fensu dupes
-description: "Report ranked clusters of duplicated functions as advisory review input, and act on them as evidence of drift."
+description: "Report ranked clusters of duplicated functions as review input, act on them as evidence of drift, and optionally block new copies."
 ---
 
 `fensu dupes` reports concrete duplicated code: ranked clusters of exact, renamed,
 and near-miss function-level copies in Python, Rust, TypeScript, JavaScript, and
-Svelte. It is an advisory review aid, not a gate. Where [`fensu check`](/cli/check)
+Svelte. By default it is an advisory review aid, not a gate. Where [`fensu check`](/cli/check)
 enforces the policy, `dupes` points at copies worth a second look. For why
 duplication counts as architectural drift, and a worked example, see
 [Duplicated code](/concepts/duplicated-code).
@@ -13,13 +13,13 @@ duplication counts as architectural drift, and a worked example, see
 ```bash
 fensu dupes [--json] [--top TOP] [--min-similarity MIN_SIMILARITY]
             [--min-tokens MIN_TOKENS] [--lang LANG ...] [--path PATH ...]
-            [--include-tests] [--since REV] [--diff]
+            [--include-tests] [--since REV] [--diff] [--fail-on-new]
 ```
 
 <Note>
-  `fensu dupes` never fails on findings. It exits `0` whenever analysis succeeds,
-  whatever it finds. Unlike `fensu check`, its findings never need to reach zero:
-  treat each cluster as a hypothesis to review.
+  Without `--fail-on-new`, `fensu dupes` never fails on findings: it exits `0`
+  whenever analysis succeeds. Unlike `fensu check`, its findings never need to
+  reach zero: treat each cluster as a hypothesis to review.
 </Note>
 
 ## Usage
@@ -98,6 +98,7 @@ clean.
 | `--include-tests` | flag | off | Also analyse configured tests and Rust test code. |
 | `--since` | Git revision | none | Keep only clusters touching lines changed since the revision. |
 | `--diff` | flag | off | Show where the first two visible members diverge. |
+| `--fail-on-new` | flag | off | Exit `1` when a cluster touches changed lines. Requires `--since`. |
 | `--json` | flag | off | Print deterministic JSON instead of text. |
 
 ### Changes since a revision
@@ -115,6 +116,24 @@ An unknown revision is a usage error and exits `2`:
 ```text
 fensu dupes: analysis failed: --since revision no-such-rev is not a commit in this repository.
 ```
+
+### Failing on new duplication
+
+`--fail-on-new` turns `--since` into a gate for new copies. It exits `1` when any
+cluster not hidden by [`[dupes]`](#configuration) touches lines changed since
+the revision, so existing duplication elsewhere never fails the check:
+
+```bash
+fensu dupes --since origin/main --fail-on-new
+```
+
+```text
+fensu dupes: found 1 duplicated-code cluster across 7 units in 0.0s
+fensu dupes: failed: 1 new cluster touches changed lines; consolidate them or list them in [dupes] allowlist with a reason
+```
+
+To accept an intentional copy, add an [allowlist](#allowlist) entry with a
+reason. Without `--since`, the flag is a usage error and exits `2`.
 
 ### Showing divergence
 
@@ -223,8 +242,8 @@ fensu dupes --json --path 'src/shop/inventory.py' --diff
 }
 ```
 
-`total_clusters` counts every matching cluster, while `clusters` holds at most
-`--top` entries. `links` connect member indexes, and `diff` appears only with
+`advisory` is `false` under `--fail-on-new`. `total_clusters` counts every
+matching cluster, while `clusters` holds at most `--top` entries. `links` connect member indexes, and `diff` appears only with
 `--diff`.
 
 ## What is analysed
@@ -391,7 +410,8 @@ Generated [agent skills](/cli/skills) include the same guidance, so agents run
 
 | Code | Meaning |
 | --- | --- |
-| `0` | Analysis succeeded, whether or not it found duplicated code. |
+| `0` | Analysis succeeded. Without `--fail-on-new`, whether or not it found duplicated code. |
+| `1` | `--fail-on-new` found a cluster touching changed lines. |
 | `2` | Usage error, invalid or missing configuration, unknown `--since` revision, or IO failure. |
 
 ## Related

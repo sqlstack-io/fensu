@@ -3,7 +3,9 @@ use crate::helpers::{
     spaced_summaries, summary, text, write, write_files, PYTHON_CONFIG, PYTHON_EXTRA,
     PYTHON_UNRELATED,
 };
-use crate::test_types::{ChangedSinceTestCase, CommandOutputTestCase, JsonShapeTestCase};
+use crate::test_types::{
+    ChangedSinceTestCase, CommandOutputTestCase, FailOnNewTestCase, JsonShapeTestCase,
+};
 
 #[test]
 fn given_clone_findings_when_rendering_text_then_output_is_advisory_ranked_and_exits_zero() {
@@ -359,6 +361,110 @@ fn given_git_changes_when_filtering_since_revision_then_only_touched_clusters_re
             test_case.expected_clusters,
             "{}",
             test_case.description
+        );
+    }
+}
+
+#[test]
+fn given_fail_on_new_when_a_changed_line_joins_a_cluster_then_only_unlisted_clusters_fail() {
+    let allowlisted = format!(
+        "{PYTHON_CONFIG}\n[dupes]\n\n[[dupes.allowlist]]\npaths = [\"src/shop/*/summary.py\"]\nreason = \"Exports mirror the order summary contract.\"\n"
+    );
+    let test_cases = [
+        FailOnNewTestCase {
+            description: "a new copy of committed code fails",
+            config: PYTHON_CONFIG.to_owned(),
+            worktree: vec![("src/shop/exports/summary.py", summary(""))],
+            arguments: &["--since", "HEAD", "--fail-on-new"],
+            expected_exit: 1,
+            expected_stdout:
+                "(--fail-on-new; each cluster touching changed lines fails the command)",
+            expected_stderr: "1 new cluster touches changed lines",
+        },
+        FailOnNewTestCase {
+            description: "an allowlisted new copy passes",
+            config: allowlisted,
+            worktree: vec![("src/shop/exports/summary.py", summary(""))],
+            arguments: &["--since", "HEAD", "--fail-on-new"],
+            expected_exit: 0,
+            expected_stdout: "(--fail-on-new;",
+            expected_stderr: "(no new clusters)",
+        },
+        FailOnNewTestCase {
+            description: "an existing cluster untouched by the change passes",
+            config: PYTHON_CONFIG.to_owned(),
+            worktree: vec![("src/shop/warehouse/notes.py", "NOTE = 1\n".to_owned())],
+            arguments: &["--since", "HEAD", "--fail-on-new"],
+            expected_exit: 0,
+            expected_stdout: "(--fail-on-new;",
+            expected_stderr: "(no new clusters)",
+        },
+        FailOnNewTestCase {
+            description: "the same new copy without the flag stays advisory",
+            config: PYTHON_CONFIG.to_owned(),
+            worktree: vec![("src/shop/exports/summary.py", summary(""))],
+            arguments: &["--since", "HEAD"],
+            expected_exit: 0,
+            expected_stdout: "(advisory;",
+            expected_stderr: "(advisory)",
+        },
+        FailOnNewTestCase {
+            description: "JSON output reports the run as gated",
+            config: PYTHON_CONFIG.to_owned(),
+            worktree: vec![("src/shop/exports/summary.py", summary(""))],
+            arguments: &["--since", "HEAD", "--fail-on-new", "--json"],
+            expected_exit: 1,
+            expected_stdout: "\"advisory\": false",
+            expected_stderr: "1 new cluster touches changed lines",
+        },
+        FailOnNewTestCase {
+            description: "the flag without a base revision is a usage error",
+            config: PYTHON_CONFIG.to_owned(),
+            worktree: vec![],
+            arguments: &["--fail-on-new"],
+            expected_exit: 2,
+            expected_stdout: "",
+            expected_stderr: "--fail-on-new: requires --since",
+        },
+    ];
+    for test_case in &test_cases {
+        let repository = tempfile::tempdir().expect("temporary repository");
+        write(repository.path().join("fensu.toml"), &test_case.config);
+        write_files(
+            repository.path(),
+            &[
+                ("src/shop/orders/summary.py", summary("")),
+                ("src/shop/billing/summary.py", summary("")),
+            ],
+        );
+        git(repository.path(), &["init", "--quiet"]);
+        git(repository.path(), &["add", "."]);
+        git(
+            repository.path(),
+            &["commit", "--quiet", "-m", "seed orders"],
+        );
+        write_files(repository.path(), &test_case.worktree);
+
+        let output = run_dupes(repository.path(), test_case.arguments);
+
+        assert_eq!(
+            output.status.code(),
+            Some(test_case.expected_exit),
+            "{}: {}",
+            test_case.description,
+            text(&output.stderr)
+        );
+        assert!(
+            text(&output.stdout).contains(test_case.expected_stdout),
+            "{}: {}",
+            test_case.description,
+            text(&output.stdout)
+        );
+        assert!(
+            text(&output.stderr).contains(test_case.expected_stderr),
+            "{}: {}",
+            test_case.description,
+            text(&output.stderr)
         );
     }
 }
