@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.29.3](https://github.com/sqlstack-io/fensu/compare/v0.29.2...v0.29.3) (2026-11-06)
+
+
+### Documentation
+
+* **release:** say that a maintainer merges the release pull request ([#130](https://github.com/sqlstack-io/fensu/issues/130)) ([d4c25ba](https://github.com/sqlstack-io/fensu/commit/d4c25ba3664dc442810bf7ec5d4adedb4dc8f655))
+
 ## [0.29.2](https://github.com/sqlstack-io/fensu/compare/v0.29.1...v0.29.2) (2026-11-06)
 
 
