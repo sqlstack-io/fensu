@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.29.2](https://github.com/sqlstack-io/fensu/compare/v0.29.1...v0.29.2) (2026-11-06)
+
+
+### Bug Fixes
+
+* **check:** report unavailable cargo as FPRSL902, not a manifest fault ([#128](https://github.com/sqlstack-io/fensu/issues/128)) ([70c2100](https://github.com/sqlstack-io/fensu/commit/70c2100a4a09438226e7eae04e7aa55e0899693e))
+
 ## [0.29.1](https://github.com/sqlstack-io/fensu/compare/v0.29.0...v0.29.1) (2026-11-05)
 
 
