@@ -13,10 +13,11 @@ starts the trusted release workflow.
    release head SHA. It reuses `Verify` only after proving the release base tree matches
    the successfully verified head of that specific merged pull request. Trusted code from
    that base checks every owned manifest and lockfile version before and after lock refresh.
-4. Only after every trusted check passes, the workflow squash-merges the release pull
-   request and dispatches Release Please on `main` again.
-5. Release Please creates the GitHub `v0*` release. The workflow dispatches `publish.yml`
-   for that exact tag.
+4. Each trusted check reports its result as a commit status on the release head. Once those
+   statuses and the pull request's own required checks pass, a maintainer squash-merges the
+   release pull request. The workflow does not merge it.
+5. The merge to `main` runs Release Please again, which creates the GitHub `v0*` release. The
+   workflow dispatches `publish.yml` for that exact tag.
 6. Publish builds every supported native wheel plus both source distributions, validates
    the standalone CLI wheel tags, publishes through PyPI trusted publishing, and publishes
    `fensu-policy` through crates.io trusted publishing. The Rust analyzer is included in the
