@@ -61,11 +61,14 @@ pub(crate) fn scan_workspace(repo_root: &path::Path) -> models::WorkspaceScan {
     let metadata = match command.exec() {
         Ok(value) => value,
         Err(error) => {
-            violations.push(manifest_setup_violation(
-                repo_root,
-                &manifest_path,
-                format!("Cargo could not discover workspace packages and targets: {error}"),
-            ));
+            violations.push(match cargo_unavailable_message(repo_root, &error) {
+                Some(message) => cargo_unavailable_violation(repo_root, &manifest_path, message),
+                None => manifest_setup_violation(
+                    repo_root,
+                    &manifest_path,
+                    format!("Cargo could not discover workspace packages and targets: {error}"),
+                ),
+            });
             return models::WorkspaceScan {
                 crates: Vec::new(),
                 violations,
@@ -872,6 +875,57 @@ pub(crate) fn manifest_setup_violation(
         line: None,
         message,
         remediation: "restore a readable, valid Cargo manifest before checking structure",
+    })
+}
+
+/// Describe a `cargo metadata` failure caused by the toolchain rather than the manifest.
+fn cargo_unavailable_message(
+    repo_root: &path::Path,
+    error: &cargo_metadata::Error,
+) -> Option<String> {
+    let cause = match error {
+        cargo_metadata::Error::Io(io) if io.kind() == std::io::ErrorKind::NotFound => {
+            "cargo not found".to_owned()
+        }
+        cargo_metadata::Error::Io(io) => format!("cargo could not run: {io}"),
+        cargo_metadata::Error::CargoMetadata { stderr } => {
+            let line = stderr
+                .lines()
+                .find(|line| reports_unavailable_toolchain(line))?;
+            format!(
+                "cargo could not run: {}",
+                line.trim_start_matches("error: ")
+            )
+        }
+        _ => return None,
+    };
+    let guide = constants::RUST_TOOLCHAIN_FILES
+        .iter()
+        .find(|name| repo_root.join(name).is_file())
+        .map_or_else(String::new, |name| format!(" (see {name})"));
+    Some(format!("{cause}; install the Rust toolchain{guide}"))
+}
+
+fn reports_unavailable_toolchain(line: &str) -> bool {
+    constants::TOOLCHAIN_UNAVAILABLE_MARKERS
+        .iter()
+        .any(|marker| line.contains(marker))
+}
+
+fn cargo_unavailable_violation(
+    repo_root: &path::Path,
+    manifest_path: &path::Path,
+    message: String,
+) -> models::Violation {
+    let relative = manifest_path
+        .strip_prefix(repo_root)
+        .unwrap_or(manifest_path);
+    models::Violation::new(models::ViolationRequest {
+        code: constants::CARGO_UNAVAILABLE_CODE,
+        path: relative,
+        line: None,
+        message,
+        remediation: "install the Rust toolchain so that `cargo metadata` can run",
     })
 }
 

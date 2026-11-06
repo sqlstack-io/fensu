@@ -361,6 +361,16 @@ fn evaluate_rust_target(request: EvaluationRequest<'_>) -> Result<TargetEvaluati
             &config.resolved_ownership_roots.iter().map(|root| root.path.clone()).collect::<Vec<_>>(),
         )?
     };
+    if let Some(diagnostic) = analysis
+        .diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.code == fensu_rust::CARGO_UNAVAILABLE_CODE)
+    {
+        return Err(format!(
+            "FP{} Rust analysis cannot run: {}",
+            diagnostic.code, diagnostic.message
+        ));
+    }
     let repository_facts: Option<serde_json::Value> = collect_repository_facts
         .then(|| serde_json::to_value(&analysis.facts).map_err(|error| error.to_string()))
         .transpose()?;
@@ -389,7 +399,7 @@ fn evaluate_rust_target(request: EvaluationRequest<'_>) -> Result<TargetEvaluati
             .find(|diagnostic| diagnostic.code == fensu_rust::METADATA_SETUP_CODE)
             .map_or_else(
                 || "Cargo reported no workspace source files".to_owned(),
-                |diagnostic| diagnostic.message.clone(),
+                |diagnostic| format!("FP{} {}", diagnostic.code, diagnostic.message),
             );
         return Err(format!(
             "Rust analysis found 0 Rust files, but the target has {rust_source_count}; no Rust rule can be evaluated. {cause}"

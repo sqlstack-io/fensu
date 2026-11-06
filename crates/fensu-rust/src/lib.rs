@@ -10,7 +10,8 @@ pub mod rules;
 pub mod types;
 
 pub use constants::{
-    CACHE_CONTRACT_VERSION, FACT_SCHEMA_VERSION, METADATA_SETUP_CODE, PARSER_CONTRACT_VERSION,
+    CACHE_CONTRACT_VERSION, CARGO_UNAVAILABLE_CODE, FACT_SCHEMA_VERSION, METADATA_SETUP_CODE,
+    PARSER_CONTRACT_VERSION,
 };
 pub use facts::models::RustWorkspaceFacts;
 pub use models::{AnalysisDiagnostic, RepositoryAnalysis};

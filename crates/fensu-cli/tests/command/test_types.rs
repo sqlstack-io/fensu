@@ -93,6 +93,15 @@ pub(crate) struct RustMetadataCacheTestCase {
     pub(crate) expected_error: &'static str,
 }
 
+pub(crate) struct RustCargoAvailabilityTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) manifest: &'static str,
+    pub(crate) environment: &'static [(&'static str, &'static str)],
+    pub(crate) expected_exit_code: i32,
+    pub(crate) expected_present: &'static str,
+    pub(crate) expected_absent: &'static str,
+}
+
 pub(crate) struct RustCustomFileRuleTestCase {
     pub(crate) description: &'static str,
     pub(crate) expected_exit_code: i32,

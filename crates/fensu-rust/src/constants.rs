@@ -4,6 +4,7 @@ pub const PARSER_CONTRACT_VERSION: &str = "rust-syn-workspace-v1";
 pub const CACHE_CONTRACT_VERSION: &str = "rust-rules-v7";
 pub const FACT_SCHEMA_VERSION: &str = "rust-facts-v1";
 pub const METADATA_SETUP_CODE: &str = "RSL901";
+pub const CARGO_UNAVAILABLE_CODE: &str = "RSL902";
 pub(crate) const CRATE_PATH_ROOT: &str = "crate";
 pub(crate) const SELF_PATH_ROOT: &str = "self";
 pub(crate) const SUPER_PATH_ROOT: &str = "super";
@@ -103,6 +104,12 @@ pub const TESTS_DIRECTORY: &str = "tests";
 pub const BIN_DIRECTORY: &str = "bin";
 pub const CARGO_MANIFEST_FILE: &str = "Cargo.toml";
 pub const CARGO_LOCK_FILE: &str = "Cargo.lock";
+pub(crate) const RUST_TOOLCHAIN_FILES: [&str; 2] = ["rust-toolchain.toml", "rust-toolchain"];
+pub(crate) const TOOLCHAIN_UNAVAILABLE_MARKERS: [&str; 3] = [
+    "rustup could not choose a version of cargo",
+    "error: toolchain '",
+    "could not download nonexistent rust version",
+];
 pub const RUST_SUFFIX: &str = "rs";
 pub const SELF_MODULE: &str = "self";
 pub const SUPER_MODULE: &str = "super";
