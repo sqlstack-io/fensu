@@ -1,9 +1,10 @@
 use crate::helpers::{require_workspace_python, run_check, run_check_with, write};
 use crate::test_types::{
-    InvalidCheckConfigTestCase, RustCacheTestCase, RustCheckTestCase,
-    RustCustomCacheInvalidationTestCase, RustCustomCoverageTestCase, RustCustomFailClosedTestCase,
-    RustCustomFileRuleTestCase, RustCustomHostRoutingTestCase, RustCustomMalformedSourceTestCase,
-    RustCustomNarrowCacheTestCase, RustCustomPolicyTestCase, RustMetadataCacheTestCase,
+    InvalidCheckConfigTestCase, RustCacheTestCase, RustCargoAvailabilityTestCase,
+    RustCheckTestCase, RustCustomCacheInvalidationTestCase, RustCustomCoverageTestCase,
+    RustCustomFailClosedTestCase, RustCustomFileRuleTestCase, RustCustomHostRoutingTestCase,
+    RustCustomMalformedSourceTestCase, RustCustomNarrowCacheTestCase, RustCustomPolicyTestCase,
+    RustMetadataCacheTestCase,
 };
 
 const RUST_CONFIG: &str = "[targets.rust]\nanalyzer = \"rust\"\nroots = [\"src\"]\ntests = []\ntooling = []\nrule_packs = [\"rust\"]\nselect = [\"FPRSL302\"]\n";
@@ -307,6 +308,83 @@ fn given_unavailable_cargo_metadata_when_checking_then_failure_is_read_only_and_
             );
             assert_eq!(current_lock, stale_lock, "{}", test_case.description);
         }
+    }
+}
+
+#[test]
+fn given_cargo_availability_when_checking_then_missing_cargo_is_not_blamed_on_the_manifest() {
+    let valid_manifest = "[package]\nname = \"example\"\nversion = \"0.1.0\"\nedition = \"2021\"\n";
+    let test_cases = [
+        RustCargoAvailabilityTestCase {
+            description: "missing cargo is an environment error with its own code",
+            manifest: valid_manifest,
+            environment: &[("CARGO", "/cargo-does-not-exist/cargo"), ("PATH", "/cargo-does-not-exist")],
+            expected_exit_code: 2,
+            expected_present: "FPRSL902 Rust analysis cannot run: cargo not found; install the Rust toolchain (see rust-toolchain.toml)",
+            expected_absent: "FPRSL901",
+        },
+        RustCargoAvailabilityTestCase {
+            description: "a valid manifest with working cargo reaches the selected rule",
+            manifest: valid_manifest,
+            environment: &[],
+            expected_exit_code: 1,
+            expected_present: "FPRSL302",
+            expected_absent: "FPRSL90",
+        },
+        RustCargoAvailabilityTestCase {
+            description: "a manifest cargo rejects keeps the manifest setup code",
+            manifest: "[package]\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+            environment: &[],
+            expected_exit_code: 2,
+            expected_present: "FPRSL901 Cargo could not discover workspace packages and targets",
+            expected_absent: "FPRSL902",
+        },
+    ];
+    for test_case in test_cases {
+        let repository = tempfile::tempdir().expect("temporary repository");
+        write(repository.path().join("Cargo.toml"), test_case.manifest);
+        write(
+            repository.path().join("rust-toolchain.toml"),
+            "[toolchain]\nchannel = \"stable\"\n",
+        );
+        write(
+            repository.path().join("src/lib.rs"),
+            "pub fn value() -> usize { 1 }\n",
+        );
+        write(repository.path().join("fensu.toml"), RUST_CONFIG);
+        let output = std::process::Command::new(env!("CARGO_BIN_EXE_fensu"))
+            .args(["check", "--no-color", "--no-cache"])
+            .current_dir(repository.path())
+            .env(
+                "FENSU_PYTHON",
+                repository.path().join("python-does-not-exist"),
+            )
+            .env("NO_COLOR", "1")
+            .envs(test_case.environment.iter().copied())
+            .output()
+            .expect("native fensu process runs");
+        let combined = format!(
+            "{}{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+
+        assert_eq!(
+            output.status.code(),
+            Some(test_case.expected_exit_code),
+            "{}: {combined}",
+            test_case.description
+        );
+        assert!(
+            combined.contains(test_case.expected_present),
+            "{}: {combined}",
+            test_case.description
+        );
+        assert!(
+            !combined.contains(test_case.expected_absent),
+            "{}: {combined}",
+            test_case.description
+        );
     }
 }
 
@@ -929,7 +1007,7 @@ fn given_unavailable_rust_facts_when_custom_rule_is_selected_then_check_fails_cl
             manifest: package,
             rule_suffix: "",
             search_path: |empty| empty.as_os_str().to_owned(),
-            expected_error: "failed to start `cargo metadata`",
+            expected_error: "FPRSL902 Rust analysis cannot run: cargo not found",
         },
         RustCustomFailClosedTestCase {
             description: "workspace has Rust sources but no packages",

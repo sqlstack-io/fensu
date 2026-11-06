@@ -40,6 +40,7 @@ _IMPLEMENTATION_CODES: tuple[str, ...] = (
     "RSL306",
     "RSL307",
     "RSL901",
+    "RSL902",
     "RSN001",
     "RSN002",
     "RSN003",
@@ -188,6 +189,7 @@ _MESSAGES: dict[str, str] = {
     "RSS012": "tuple types keep a bounded number of positional elements",
     "RSL104": "underscore-prefixed Rust main entries remain inside their owning domain",
     "RSL105": "publicly named Rust main entries have an external consumer",
+    "RSL902": "cargo runs, so that Rust analysis can read the workspace",
 }
 
 _REMEDIATIONS: dict[str, str] = {
@@ -208,6 +210,10 @@ _REMEDIATIONS: dict[str, str] = {
     "RSL105": (
         "Prefix the filename with '_' and restrict its visibility until another domain consumes "
         "it, or keep the public name crate-visible."
+    ),
+    "RSL902": (
+        "Install the Rust toolchain, for example as rust-toolchain.toml pins it, and put cargo "
+        "on PATH or set CARGO. fensu check exits 2 until cargo runs."
     ),
 }
 

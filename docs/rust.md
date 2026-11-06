@@ -200,9 +200,18 @@ Rust sources, Cargo manifests, existing lockfiles, and target settings are cache
 Existing lockfiles are read with locked metadata resolution. Lock-free workspaces use declared
 dependency metadata without creating a lockfile. A Cargo metadata setup failure produces a
 diagnostic and prevents caching, even if that diagnostic is excluded by rule selection. When the
-target has Rust sources but Cargo yields no source files, for example because `cargo` is not on
-`PATH` or the workspace has no packages, `fensu check` exits 2 with the cause instead of
-reporting a result.
+target has Rust sources but Cargo yields no source files, for example because the workspace has
+no packages, `fensu check` exits 2 with the cause instead of reporting a result.
+
+When `cargo` itself cannot run, because it is not on `PATH` or rustup has no usable toolchain,
+`fensu check` exits 2 with `FPRSL902` instead of blaming the manifest:
+
+```text
+FPRSL902 Rust analysis cannot run: cargo not found; install the Rust toolchain (see rust-toolchain.toml)
+```
+
+`FPRSL901` remains the code for a manifest that cannot be read, parsed, or accepted by a working
+`cargo`.
 ## File placement and embedded resources
 
 The `rust` pack enables `FPRSR311` (`rust-rsr311`) and `FPRSL106` (`rust-rsl106`)
