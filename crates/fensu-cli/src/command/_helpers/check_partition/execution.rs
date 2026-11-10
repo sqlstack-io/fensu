@@ -218,7 +218,7 @@ fn structured_check(request: StructuredCheckRequest<'_>) -> CliOutput {
     let (stdout, report_exit_code) = if command_error && results.is_empty() {
         (String::new(), 0)
     } else {
-        render_check_results(results, &root, color, show_warnings)
+        render_check_results(results, &root, color, (show_warnings, command_error))
     };
     let mut stderr = String::new();
     if show_cache_stats {

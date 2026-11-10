@@ -14,7 +14,14 @@ pub(crate) fn report(request: ReportRequest<'_>) -> String {
     } else {
         "faults"
     };
-    let mut summary = format!("Found {} {noun}", request.faults.len());
+    let mut summary = if request.incomplete {
+        format!(
+            "Check incomplete: found {} {noun} in the targets that ran",
+            request.faults.len()
+        )
+    } else {
+        format!("Found {} {noun}", request.faults.len())
+    };
     if request.show_warnings {
         let noun = if request.warnings.len() == 1 {
             "warning"
@@ -24,7 +31,7 @@ pub(crate) fn report(request: ReportRequest<'_>) -> String {
         summary.push_str(&format!(" and {} {noun}", request.warnings.len()));
     }
     if request.color {
-        let style = if request.faults.is_empty() {
+        let style = if request.faults.is_empty() && !request.incomplete {
             GREEN
         } else {
             ORANGE

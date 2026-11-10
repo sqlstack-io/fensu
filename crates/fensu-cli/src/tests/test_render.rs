@@ -44,6 +44,7 @@ fn given_colored_faults_when_rendering_then_uses_historical_orange_styles() {
             evaluation_summary: None,
             applied_exceptions: 0,
             threshold_uses: &[],
+            incomplete: false,
         });
 
         assert_eq!(
