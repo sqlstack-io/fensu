@@ -46,3 +46,58 @@ fn given_custom_python_rust_and_web_rules_when_checking_then_native_and_hosted_t
         }
     }
 }
+
+#[test]
+fn given_custom_python_and_rust_targets_without_cargo_when_checking_then_the_summary_says_incomplete(
+) {
+    let test_cases = [crate::test_types::RustMixedTargetUnavailableTestCase {
+        description: "a Rust target that cannot run fails the check, and the summary of the \
+                      Python findings says the check is incomplete",
+        expected_exit_code: 2,
+        expected_error: "FPRSL902 Rust analysis cannot run: cargo not found",
+        expected_summary: "Check incomplete: found 1 fault in the targets that ran",
+    }];
+    for test_case in test_cases {
+        let repository = tempfile::tempdir().expect("temporary repository");
+        write(
+            repository.path().join("Cargo.toml"),
+            "[package]\nname = \"example\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+        );
+        write(
+            repository.path().join("src/lib.rs"),
+            "pub fn sum(left: usize, right: usize) -> usize { left + right }\n",
+        );
+        write(
+            repository.path().join("python/value.py"),
+            "def value(item):\n    return item\n",
+        );
+        write(repository.path().join("rules/custom.py"), "import ast\nfrom fensu import Family, Fault, RuleContext, rule\n@rule(code='XMIX001', family=Family.CUSTOM, slug='mixed-python', message='mixed Python')\ndef mixed_python(module: ast.Module, ctx: RuleContext) -> list[Fault]:\n    return []\n");
+        write(repository.path().join("fensu.toml"), "[targets.python]\nanalyzer = \"python\"\nroots = [\"python\"]\ntests = []\ntooling = []\nselect = [\"FFA001\", \"XMIX001\"]\nrule_paths = [\"rules/custom.py\"]\n[targets.rust]\nanalyzer = \"rust\"\nroots = [\"src\"]\ntests = []\ntooling = []\nrule_packs = [\"rust\"]\nselect = [\"FPRSS010\"]\n");
+        let output = std::process::Command::new(env!("CARGO_BIN_EXE_fensu"))
+            .args(["check", "--no-color", "--no-cache"])
+            .current_dir(repository.path())
+            .env("FENSU_PYTHON", crate::helpers::workspace_python())
+            .env("CARGO", "/cargo-does-not-exist/cargo")
+            .env("PATH", "/cargo-does-not-exist")
+            .output()
+            .expect("mixed check runs");
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert_eq!(
+            output.status.code(),
+            Some(test_case.expected_exit_code),
+            "{}: {stdout} {stderr}",
+            test_case.description
+        );
+        assert!(
+            stderr.contains(test_case.expected_error),
+            "{}: {stderr}",
+            test_case.description
+        );
+        assert!(
+            stdout.contains(test_case.expected_summary) && !stdout.contains("Found "),
+            "{}: {stdout}",
+            test_case.description
+        );
+    }
+}

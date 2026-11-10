@@ -212,6 +212,14 @@ FPRSL902 Rust analysis cannot run: cargo not found; install the Rust toolchain (
 
 `FPRSL901` remains the code for a manifest that cannot be read, parsed, or accepted by a working
 `cargo`.
+
+When other targets did run, their faults are still printed, and the summary says the check is
+incomplete instead of reporting a count for the whole repository:
+
+```text
+Check incomplete: found 1 fault in the targets that ran
+```
+
 ## File placement and embedded resources
 
 The `rust` pack enables `FPRSR311` (`rust-rsr311`) and `FPRSL106` (`rust-rsl106`)

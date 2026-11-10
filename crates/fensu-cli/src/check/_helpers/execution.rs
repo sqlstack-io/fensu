@@ -44,7 +44,8 @@ pub(crate) fn render_check(
     let cacheable = results
         .iter()
         .all(|result| result.cacheable.unwrap_or(true));
-    let (output, exit_code) = render_results(results, &plan.root, plan.color, options.warn);
+    let (output, exit_code) =
+        render_results(results, &plan.root, plan.color, (options.warn, false));
     let mut stderr = String::new();
     stderr.push_str(&freshness(&plan));
     if options.cache_stats {

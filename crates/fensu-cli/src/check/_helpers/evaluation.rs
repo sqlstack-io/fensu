@@ -946,7 +946,7 @@ pub(crate) fn render_results(
     mut results: Vec<CheckResult>,
     root: &Path,
     color: bool,
-    show_warnings: bool,
+    (show_warnings, incomplete): (bool, bool),
 ) -> (String, i32) {
     let selected = results.iter().map(|result| result.selected).sum::<usize>();
     let excluded = results.iter().map(|result| result.excluded).sum::<usize>();
@@ -1009,6 +1009,7 @@ pub(crate) fn render_results(
         evaluation_summary: summary.as_deref(),
         applied_exceptions,
         threshold_uses: &threshold_uses,
+        incomplete,
     });
     (output, i32::from(!faults.is_empty()))
 }

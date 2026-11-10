@@ -14,4 +14,6 @@ pub(crate) struct ReportRequest<'a> {
     pub(crate) evaluation_summary: Option<&'a str>,
     pub(crate) applied_exceptions: usize,
     pub(crate) threshold_uses: &'a [ThresholdUse],
+    /// Whether a target could not run, so the faults cover only the targets that did.
+    pub(crate) incomplete: bool,
 }
