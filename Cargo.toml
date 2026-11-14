@@ -43,7 +43,7 @@ rusqlite = { version = "0.38", features = ["bundled"] }
 serde_json = { version = "1", features = ["preserve_order"] }
 serde = { version = "1", features = ["derive"] }
 sha2 = "0.10"
-fensu-facts = { path = "crates/fensu-facts", default-features = false }
+fensu-facts = { path = "crates/fensu-facts", version = "0.1.0", default-features = false }
 fensu-native = { path = "crates/fensu-native", default-features = false }
 fensu-policy = { path = "crates/fensu-policy" }
 fensu-rust = { path = "crates/fensu-rust" }
