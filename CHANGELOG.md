@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.30.0](https://github.com/sqlstack-io/fensu/compare/v0.29.3...v0.30.0) (2026-11-14)
+
+
+### Features
+
+* give fensu-facts and fensu-native a deliberate Rust API and release them with Fensu ([#133](https://github.com/sqlstack-io/fensu/issues/133)) ([2cf1440](https://github.com/sqlstack-io/fensu/commit/2cf14409685b9203ee8f37f348bec13cd9b38b9d))
+
 ## [0.29.3](https://github.com/sqlstack-io/fensu/compare/v0.29.2...v0.29.3) (2026-11-10)
 
 
