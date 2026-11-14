@@ -21,6 +21,8 @@ crate-type = ["rlib"]
 
 [dependencies]
 dunce.workspace = true
+# Not used directly: ruff_python_ast 0.0.4 needs a get-size2 built on compact_str 0.9, and 0.10.2 moved to 0.10.
+get-size2.workspace = true
 globset.workspace = true
 hex.workspace = true
 pyo3 = { workspace = true, optional = true }

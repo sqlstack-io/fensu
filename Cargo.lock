@@ -427,6 +427,7 @@ name = "fensu-facts"
 version = "0.29.3"
 dependencies = [
  "dunce",
+ "get-size2",
  "globset",
  "hex",
  "pyo3",
