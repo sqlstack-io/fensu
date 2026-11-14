@@ -170,6 +170,17 @@ VALID_HEAD_FILES: dict[str, str] = {
             expected_errors=["Cargo.toml contains changes beyond the release version substitution"],
         ),
         ReleaseDeltaTestCase(
+            description="workspace dependency version left behind",
+            delta=ReleaseDelta(
+                old_version=OLD_VERSION,
+                new_version=NEW_VERSION,
+                changed_paths=frozenset((*VERSION_PATHS, CHANGELOG_PATH)),
+                base_files=BASE_FILES,
+                head_files={**VALID_HEAD_FILES, "Cargo.toml": BASE_FILES["Cargo.toml"]},
+            ),
+            expected_errors=["Cargo.toml contains changes beyond the release version substitution"],
+        ),
+        ReleaseDeltaTestCase(
             description="lockfile dependency tampering",
             delta=ReleaseDelta(
                 old_version=OLD_VERSION,

@@ -26,7 +26,7 @@ pyo3 = { workspace = true, optional = true }
 rayon.workspace = true
 ruff_python_ast.workspace = true
 rusqlite = { workspace = true, optional = true }
-sha2.workspace = true
+sha2 = { workspace = true, optional = true }
 serde_json.workspace = true
 fensu-facts = { workspace = true, default-features = false }
 unicode-ident.workspace = true
@@ -34,7 +34,7 @@ unicode-ident.workspace = true
 [features]
 default = ["python"]
 extension-module = ["python", "pyo3/extension-module"]
-python = ["dep:pyo3", "dep:rusqlite", "dep:flate2", "fensu-facts/python"]
+python = ["dep:pyo3", "dep:rusqlite", "dep:flate2", "dep:sha2", "fensu-facts/python"]
 
 [dev-dependencies]
 serde.workspace = true

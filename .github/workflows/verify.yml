@@ -113,7 +113,7 @@ jobs:
       - run: make test-rust
 
   shared-crates:
-    name: Shared crate packages
+    name: Shared crate packages (Rust 1.85)
     needs: changes
     if: needs.changes.outputs.full == 'true'
     runs-on: ubuntu-latest

@@ -54,8 +54,8 @@ fn main() {
 }
 RUST
 cargo +1.95.0 run --quiet --manifest-path "${analysis_consumer}/Cargo.toml"
-if cargo +1.95.0 tree --manifest-path "${analysis_consumer}/Cargo.toml" -e normal \
-  | grep -E '\b(pyo3|rusqlite|flate2) v'; then
+analysis_tree="$(cargo +1.95.0 tree --manifest-path "${analysis_consumer}/Cargo.toml" -e normal)"
+if grep -E '\b(pyo3|rusqlite|flate2) v' <<< "${analysis_tree}"; then
   echo "the analysis crates pulled in Python, SQLite or compression dependencies" >&2
   exit 1
 fi
