@@ -1,3 +1,3 @@
 //! Extension registration entry modules.
 
-pub mod register_module;
+pub(crate) mod register_module;

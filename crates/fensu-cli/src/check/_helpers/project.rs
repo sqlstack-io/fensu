@@ -5,7 +5,7 @@ use std::fs;
 use std::path::{Component, Path, PathBuf};
 
 use fensu_facts::extension::models::ProgramHandle;
-use fensu_native::rules::models::{NativeProjectModule, NativeProjectPlane};
+use fensu_native::{NativeProjectModule, NativeProjectPlane};
 use globset::GlobBuilder;
 use serde_json::Value;
 use walkdir::DirEntry;
@@ -215,7 +215,7 @@ fn collect_entrypoint_values<'a>(value: &'a toml::Value, mut values: Vec<&'a str
 
 pub(crate) fn observe(
     root: &Path,
-    plans: &[fensu_native::rules::models::NativeProjectQuery],
+    plans: &[fensu_native::NativeProjectQuery],
     programs: &HashMap<&str, &ProgramHandle>,
     modules: &HashMap<String, &ProgramHandle>,
 ) -> Result<HashMap<String, Vec<String>>, String> {

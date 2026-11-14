@@ -5,9 +5,9 @@ use std::fs;
 use std::path::Path;
 
 use fensu_facts::extension::models::ProgramHandle;
+use fensu_native::evaluate_core_rules;
 use fensu_native::rules::constants::NATIVE_RULE_FACT_FAMILIES;
-use fensu_native::rules::main::evaluate_core_rules::evaluate_core_rules;
-use fensu_native::rules::models::{
+use fensu_native::{
     NativeDeadCodeContext, NativeProjectModule, NativeProjectPlane, NativeRuleContext,
 };
 use ruff_python_ast::PythonVersion;
@@ -159,16 +159,14 @@ fn evaluate_fixture(test_case: &CoreRuleFixture) -> Vec<ExpectedFault> {
             .context
             .custom_registrations
             .iter()
-            .map(
-                |registration| fensu_native::rules::models::CustomRegistration {
-                    code: registration.0.clone(),
-                    module: registration.1.clone(),
-                    name: registration.2.clone(),
-                    source_path: registration.3.replace("<repo-root>", &repo_root),
-                    line: registration.4,
-                    column: registration.5,
-                },
-            )
+            .map(|registration| fensu_native::CustomRegistration {
+                code: registration.0.clone(),
+                module: registration.1.clone(),
+                name: registration.2.clone(),
+                source_path: registration.3.replace("<repo-root>", &repo_root),
+                line: registration.4,
+                column: registration.5,
+            })
             .collect(),
         repo_root,
         rule_options: HashMap::new(),

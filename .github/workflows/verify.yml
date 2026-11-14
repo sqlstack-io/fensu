@@ -113,13 +113,16 @@ jobs:
       - run: make test-rust
 
   shared-crates:
-    name: Shared crate packages (Rust 1.85)
+    name: Shared crate packages
     needs: changes
     if: needs.changes.outputs.full == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.95.0
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: 1.85.0

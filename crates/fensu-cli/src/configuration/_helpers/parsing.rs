@@ -148,7 +148,7 @@ pub(crate) fn parse_dead_code(
     value: Option<&toml::Value>,
 ) -> Result<crate::models::DeadCodeConfig, String> {
     let value = serde_json::to_value(value).map_err(|error| error.to_string())?;
-    let (enabled, roots) = fensu_native::rules::main::parse_dead_code::parse_dead_code(&value)?;
+    let (enabled, roots) = fensu_native::parse_dead_code(&value)?;
     Ok(crate::models::DeadCodeConfig {
         enabled,
         roots: roots

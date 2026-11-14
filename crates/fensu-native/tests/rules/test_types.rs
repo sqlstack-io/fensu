@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 
-use fensu_native::rules::models::NativeFaultRow;
+use fensu_native::NativeFaultRow;
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]

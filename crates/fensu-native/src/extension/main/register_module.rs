@@ -9,7 +9,7 @@ use pyo3::wrap_pyfunction;
 
 /// Register Fensu's private native Python module.
 #[pymodule]
-pub fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
+pub(crate) fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     fensu_facts::extension::main::register_module::register_fact_functions(module)?;
     module.add_class::<rule_bindings::NativeExecutionBatch>()?;
     module.add_function(wrap_pyfunction!(

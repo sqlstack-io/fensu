@@ -24,6 +24,18 @@ BASE_FILES: dict[str, str] = {
     "crates/fensu-policy/Cargo.toml": (
         f'[package]\nname = "fensu-policy"\nversion = "{OLD_VERSION}"\n'
     ),
+    "crates/fensu-facts/Cargo.toml": (
+        f'[package]\nname = "fensu-facts"\nversion = "{OLD_VERSION}" # x-release-please-version\n'
+    ),
+    "crates/fensu-native/Cargo.toml": (
+        f'[package]\nname = "fensu-native"\nversion = "{OLD_VERSION}" # x-release-please-version\n'
+    ),
+    "Cargo.toml": (
+        "[workspace.dependencies]\n"
+        f'fensu-facts = {{ path = "crates/fensu-facts", version = "{OLD_VERSION}", '
+        "default-features = false } # x-release-please-version\n"
+        'third-party = "=0.11.0"\n'
+    ),
     "uv.lock": (
         "version = 1\n"
         f'[[package]]\nname = "fensu"\nversion = "{OLD_VERSION}"\n'
@@ -33,6 +45,8 @@ BASE_FILES: dict[str, str] = {
     "Cargo.lock": (
         "version = 4\n"
         f'[[package]]\nname = "fensu-cli"\nversion = "{OLD_VERSION}"\n'
+        f'[[package]]\nname = "fensu-facts"\nversion = "{OLD_VERSION}"\n'
+        f'[[package]]\nname = "fensu-native"\nversion = "{OLD_VERSION}"\n'
         f'[[package]]\nname = "fensu-policy"\nversion = "{OLD_VERSION}"\n'
         f'[[package]]\nname = "third-party"\nversion = "{OLD_VERSION}"\n'
     ),
@@ -52,6 +66,15 @@ VALID_HEAD_FILES: dict[str, str] = {
     "crates/fensu-policy/Cargo.toml": BASE_FILES["crates/fensu-policy/Cargo.toml"].replace(
         OLD_VERSION, NEW_VERSION
     ),
+    "crates/fensu-facts/Cargo.toml": BASE_FILES["crates/fensu-facts/Cargo.toml"].replace(
+        OLD_VERSION, NEW_VERSION
+    ),
+    "crates/fensu-native/Cargo.toml": BASE_FILES["crates/fensu-native/Cargo.toml"].replace(
+        OLD_VERSION, NEW_VERSION
+    ),
+    "Cargo.toml": BASE_FILES["Cargo.toml"].replace(
+        f'version = "{OLD_VERSION}"', f'version = "{NEW_VERSION}"', 1
+    ),
     "uv.lock": BASE_FILES["uv.lock"]
     .replace(
         f'name = "fensu"\nversion = "{OLD_VERSION}"', f'name = "fensu"\nversion = "{NEW_VERSION}"'
@@ -64,6 +87,14 @@ VALID_HEAD_FILES: dict[str, str] = {
     .replace(
         f'name = "fensu-cli"\nversion = "{OLD_VERSION}"',
         f'name = "fensu-cli"\nversion = "{NEW_VERSION}"',
+    )
+    .replace(
+        f'name = "fensu-facts"\nversion = "{OLD_VERSION}"',
+        f'name = "fensu-facts"\nversion = "{NEW_VERSION}"',
+    )
+    .replace(
+        f'name = "fensu-native"\nversion = "{OLD_VERSION}"',
+        f'name = "fensu-native"\nversion = "{NEW_VERSION}"',
     )
     .replace(
         f'name = "fensu-policy"\nversion = "{OLD_VERSION}"',
@@ -121,6 +152,22 @@ VALID_HEAD_FILES: dict[str, str] = {
             expected_errors=[
                 "packages/fensu-cli/pyproject.toml contains changes beyond the release version substitution"
             ],
+        ),
+        ReleaseDeltaTestCase(
+            description="workspace dependency tampering",
+            delta=ReleaseDelta(
+                old_version=OLD_VERSION,
+                new_version=NEW_VERSION,
+                changed_paths=frozenset((*VERSION_PATHS, CHANGELOG_PATH)),
+                base_files=BASE_FILES,
+                head_files={
+                    **VALID_HEAD_FILES,
+                    "Cargo.toml": VALID_HEAD_FILES["Cargo.toml"].replace(
+                        'third-party = "=0.11.0"', 'third-party = "=9.9.9"'
+                    ),
+                },
+            ),
+            expected_errors=["Cargo.toml contains changes beyond the release version substitution"],
         ),
         ReleaseDeltaTestCase(
             description="lockfile dependency tampering",

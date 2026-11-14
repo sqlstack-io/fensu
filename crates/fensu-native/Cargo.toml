@@ -1,6 +1,6 @@
 [package]
 name = "fensu-native"
-version = "0.1.0"
+version = "0.29.3" # x-release-please-version
 edition.workspace = true
 license.workspace = true
 publish = true
@@ -20,12 +20,12 @@ path = "src/lib.rs"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-flate2.workspace = true
+flate2 = { workspace = true, optional = true }
 globset.workspace = true
 pyo3 = { workspace = true, optional = true }
 rayon.workspace = true
 ruff_python_ast.workspace = true
-rusqlite.workspace = true
+rusqlite = { workspace = true, optional = true }
 sha2.workspace = true
 serde_json.workspace = true
 fensu-facts = { workspace = true, default-features = false }
@@ -34,7 +34,7 @@ unicode-ident.workspace = true
 [features]
 default = ["python"]
 extension-module = ["python", "pyo3/extension-module"]
-python = ["dep:pyo3", "fensu-facts/python"]
+python = ["dep:pyo3", "dep:rusqlite", "dep:flate2", "fensu-facts/python"]
 
 [dev-dependencies]
 serde.workspace = true
