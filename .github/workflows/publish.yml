@@ -63,6 +63,8 @@ jobs:
               ("CLI package", "packages/fensu-cli/pyproject.toml"),
               ("CLI crate", "crates/fensu-cli/Cargo.toml"),
               ("policy crate", "crates/fensu-policy/Cargo.toml"),
+              ("facts crate", "crates/fensu-facts/Cargo.toml"),
+              ("native crate", "crates/fensu-native/Cargo.toml"),
           ]:
               with Path(path).open("rb") as file:
                   document = tomllib.load(file)
@@ -197,6 +199,9 @@ jobs:
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: 1.85.0
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.95.0
       - name: Refresh released workspace versions in lockfile
         run: cargo +1.85.0 metadata --format-version 1 > /dev/null
       - name: Verify shared crate packages
@@ -210,6 +215,7 @@ jobs:
         run: |
           publish_if_missing() {
             package="$1"
+            toolchain="$2"
             version="$(cargo metadata --no-deps --format-version 1 \
               | jq -r --arg package "${package}" '.packages[] | select(.name == $package) | .version')"
             status="$(curl --retry 3 --silent --show-error --output /dev/null \
@@ -220,7 +226,7 @@ jobs:
                 echo "${package} ${version} is already published"
                 ;;
               404)
-                cargo publish --locked -p "${package}"
+                cargo "+${toolchain}" publish --locked -p "${package}"
                 ;;
               *)
                 echo "Could not determine ${package} ${version} publication status: HTTP ${status}" >&2
@@ -229,7 +235,9 @@ jobs:
             esac
           }
 
-          publish_if_missing fensu-policy
+          publish_if_missing fensu-facts 1.95.0
+          publish_if_missing fensu-native 1.95.0
+          publish_if_missing fensu-policy 1.85.0
 
   pypi:
     name: Publish to PyPI

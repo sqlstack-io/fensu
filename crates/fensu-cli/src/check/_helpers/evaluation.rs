@@ -2,10 +2,10 @@ use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
 use fensu_facts::extension::models::ProgramHandle;
-use fensu_native::rules::main::evaluate_core_rules::evaluate_core_rules;
-use fensu_native::rules::main::plan_core_rule_queries::plan_core_rule_queries;
-use fensu_native::rules::main::plan_execution_owners::plan_execution_owners;
-use fensu_native::rules::models::{NativeExecutionRule, NativeExecutionTarget, NativeRuleContext};
+use fensu_native::evaluate_core_rules;
+use fensu_native::plan_core_rule_queries;
+use fensu_native::plan_execution_owners;
+use fensu_native::{NativeExecutionRule, NativeExecutionTarget, NativeRuleContext};
 use fensu_policy::lifecycle::models::FindingSeverity;
 use rayon::iter::{IndexedParallelIterator, IntoParallelRefIterator, ParallelIterator};
 
@@ -169,11 +169,7 @@ pub(crate) fn evaluate(request: EvaluationRequest<'_>) -> Result<TargetEvaluatio
             .iter()
             .map(|code| (*code).to_owned())
             .collect::<Vec<_>>();
-        for row in fensu_native::rules::main::evaluate_dead_code::evaluate_dead_code(
-            &codes,
-            &dead_code_context,
-            &project,
-        ) {
+        for row in fensu_native::evaluate_dead_code(&codes, &dead_code_context, &project) {
             let metadata = rule_metadata(&row.code)?
                 .ok_or_else(|| format!("Unknown native rule code: {}", row.code))?;
             faults.push(Fault {
@@ -239,10 +235,7 @@ pub(crate) fn evaluate(request: EvaluationRequest<'_>) -> Result<TargetEvaluatio
     })
 }
 
-fn dead_code_context(
-    config: &Config,
-    project_root: &Path,
-) -> fensu_native::rules::models::NativeDeadCodeContext {
+fn dead_code_context(config: &Config, project_root: &Path) -> fensu_native::NativeDeadCodeContext {
     const PYPROJECT_SOURCE: &str = "pyproject";
     if !config.dead_code.enabled {
         return Default::default();
@@ -256,7 +249,7 @@ fn dead_code_context(
     } else {
         "fensu.toml"
     };
-    fensu_native::rules::models::NativeDeadCodeContext {
+    fensu_native::NativeDeadCodeContext {
         enabled: config.dead_code.enabled,
         roots: config
             .dead_code

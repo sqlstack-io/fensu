@@ -3,12 +3,12 @@
 use std::collections::HashMap;
 
 use fensu_facts::extension::models::ProgramHandle;
+use fensu_native::evaluate_core_rules;
+use fensu_native::plan_execution_owners;
 use fensu_native::rules::constants::{
     DAGSTER_AUTOLOAD_EXTERNAL_DISCOVERY_CODE, TOP_LEVEL_DIRECT_MODULES_CODE,
 };
-use fensu_native::rules::main::evaluate_core_rules::evaluate_core_rules;
-use fensu_native::rules::main::plan_execution_owners::plan_execution_owners;
-use fensu_native::rules::models::{
+use fensu_native::{
     NativeExecutionRule, NativeExecutionTarget, NativeProjectModule, NativeProjectPlane,
     NativeRuleContext,
 };

@@ -1,7 +1,7 @@
-//! Native core-rule kernels over shared fact rows.
+//! Core rules and dead-code analysis; the rule codes are public in [`constants`].
 
 pub(crate) mod _helpers;
 pub mod constants;
-pub mod main;
-pub mod models;
-pub mod types;
+pub(crate) mod main;
+pub(crate) mod models;
+pub(crate) mod types;

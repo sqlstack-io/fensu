@@ -14,7 +14,9 @@ from scripts.release_metadata.constants import (
     NORMALIZED_VERSION,
     OWNED_CARGO_PACKAGES,
     OWNED_UV_PACKAGES,
+    OWNED_WORKSPACE_DEPENDENCIES,
     RELEASE_MANIFEST_PATH,
+    ROOT_CARGO_PATH,
     ROOT_PROJECT_PATH,
     SEMVER_PART_COUNT,
     UV_LOCK_PATH,
@@ -65,6 +67,8 @@ def version_file_is_valid(
                 section="package",
                 delta=delta,
             )
+        elif path == ROOT_CARGO_PATH:
+            semantic_valid = _workspace_is_valid(base=base, head=head, delta=delta)
         elif path == CARGO_LOCK_PATH:
             semantic_valid = _lock_is_valid(
                 base=base,
@@ -169,6 +173,33 @@ def _root_project_is_valid(
         version=delta.new_version,
     )
     return base_normalized is not None and base_normalized == head_normalized
+
+
+def _workspace_is_valid(
+    *,
+    base: dict[str, Any],
+    head: dict[str, Any],
+    delta: ReleaseDelta,
+) -> bool:
+    base_normalized: dict[str, Any] | None = _normalized_workspace(
+        document=base,
+        expected=delta.old_version,
+    )
+    head_normalized: dict[str, Any] | None = _normalized_workspace(
+        document=head,
+        expected=delta.new_version,
+    )
+    return base_normalized is not None and base_normalized == head_normalized
+
+
+def _normalized_workspace(*, document: dict[str, Any], expected: str) -> dict[str, Any] | None:
+    normalized: dict[str, Any] = copy.deepcopy(document)
+    dependencies: dict[str, Any] = normalized["workspace"]["dependencies"]
+    for name in OWNED_WORKSPACE_DEPENDENCIES:
+        if dependencies[name].get("version") != expected:
+            return None
+        dependencies[name]["version"] = NORMALIZED_VERSION
+    return normalized
 
 
 def _normalized_field(
@@ -284,6 +315,12 @@ def _version_text_is_valid(
             old_version=delta.old_version,
             new_version=delta.new_version,
         )
+    elif path == ROOT_CARGO_PATH:
+        expected = _replace_workspace_versions(
+            value=base,
+            old_version=delta.old_version,
+            new_version=delta.new_version,
+        )
     elif path == CARGO_LOCK_PATH:
         expected = _replace_lock_versions(
             value=base,
@@ -324,6 +361,22 @@ def _replace_manifest_version(
         ),
         replacement=rf"\g<1>{new_version}\g<2>",
     )
+
+
+def _replace_workspace_versions(*, value: str, old_version: str, new_version: str) -> str | None:
+    replaced: str | None = value
+    for name in sorted(OWNED_WORKSPACE_DEPENDENCIES):
+        if replaced is None:
+            return None
+        replaced = _replace_once(
+            value=replaced,
+            pattern=(
+                rf'(?m)(^{re.escape(name)}\s*=\s*\{{[^\n]*\bversion\s*=\s*")'
+                rf'{re.escape(old_version)}("[^\n]*$)'
+            ),
+            replacement=rf"\g<1>{new_version}\g<2>",
+        )
+    return replaced
 
 
 def _replace_lock_versions(

@@ -83,6 +83,11 @@ pub struct ProgramHandle {
 }
 
 impl ProgramHandle {
+    /// Parse `source` as a Python `major.minor` module.
+    pub fn parse_source(source: &str, major: u8, minor: u8) -> Result<Self, ParseFailure> {
+        Self::parse(source, PythonVersion { major, minor })
+    }
+
     pub(crate) fn parse(source: &str, version: PythonVersion) -> Result<Self, ParseFailure> {
         let parsed = parse_strict(source, version)?;
         Ok(Self {

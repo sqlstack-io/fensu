@@ -9,7 +9,7 @@ use ruff_text_size::TextRange;
 
 /// One node of the CPython-equivalent syntax tree projected from ruff nodes.
 #[derive(Clone, Copy)]
-pub enum ShapeNode<'a> {
+pub(crate) enum ShapeNode<'a> {
     Module(&'a ModModule),
     Stmt(&'a Stmt),
     IfTail(&'a [ElifElseClause]),

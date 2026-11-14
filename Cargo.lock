@@ -424,9 +424,10 @@ dependencies = [
 
 [[package]]
 name = "fensu-facts"
-version = "0.1.0"
+version = "0.29.3"
 dependencies = [
  "dunce",
+ "get-size2",
  "globset",
  "hex",
  "pyo3",
@@ -440,7 +441,7 @@ dependencies = [
 
 [[package]]
 name = "fensu-native"
-version = "0.1.0"
+version = "0.29.3"
 dependencies = [
  "fensu-facts",
  "flate2",

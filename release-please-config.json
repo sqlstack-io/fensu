@@ -35,6 +35,18 @@
         },
         {
           "type": "generic",
+          "path": "crates/fensu-facts/Cargo.toml"
+        },
+        {
+          "type": "generic",
+          "path": "crates/fensu-native/Cargo.toml"
+        },
+        {
+          "type": "generic",
+          "path": "Cargo.toml"
+        },
+        {
+          "type": "generic",
           "path": "packages/fensu-cli/pyproject.toml"
         }
       ]
