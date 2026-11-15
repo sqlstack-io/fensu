@@ -126,6 +126,9 @@ from fensu.rules.exemplars.main.roles._classes_runtime_reexport import (
 from fensu.rules.exemplars.main.roles._custom_rule_test_coverage import (
     custom_rule_test_coverage_equivalent,
 )
+from fensu.rules.exemplars.main.roles._helpers_container_buckets import (
+    helpers_container_buckets_equivalent,
+)
 from fensu.rules.exemplars.main.roles._helpers_package_layout import (
     helpers_package_layout_equivalent,
 )
@@ -134,6 +137,7 @@ from fensu.rules.exemplars.main.roles._main_entry_name_collision import (
     main_entry_name_collision_equivalent,
 )
 from fensu.rules.exemplars.main.roles._main_package_layout import main_package_layout_equivalent
+from fensu.rules.exemplars.main.roles._package_code_lines import package_code_lines_equivalent
 from fensu.rules.exemplars.main.roles._private_definition_ordering import (
     private_definition_ordering_equivalent,
 )
@@ -304,6 +308,7 @@ NATIVE_CUSTOM_RULE_EQUIVALENTS: dict[str, RuleCheck] = canonical_equivalent_rule
         "FFR308": shared_domain_prefix_equivalent,
         "FFR309": leaf_main_boundary_equivalent,
         "FFR310": public_facade_import_direction_equivalent,
+        "FFR312": helpers_container_buckets_equivalent,
         "FFR401": entry_module_shape_equivalent,
         "FFR402": init_module_empty_equivalent,
         "FFR403": no_reexport_shim_equivalent,
@@ -315,6 +320,7 @@ NATIVE_CUSTOM_RULE_EQUIVALENTS: dict[str, RuleCheck] = canonical_equivalent_rule
         "FFR503": private_definition_ordering_equivalent,
         "FFR504": classes_runtime_reexport_equivalent,
         "FFR601": source_file_line_count_equivalent,
+        "FFR602": package_code_lines_equivalent,
         "FFR701": tooling_entrypoint_shape_equivalent,
         "FFR702": tooling_entrypoint_delegation_equivalent,
         "FFR703": tooling_entrypoint_line_count_equivalent,

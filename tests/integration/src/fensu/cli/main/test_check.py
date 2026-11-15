@@ -35,6 +35,8 @@ from tests.integration.src.fensu.cli.main._test_types import (
     ReplayFastPathTestCase,
     ScopedCacheWarningTestCase,
     ShortCircuitCheckTestCase,
+    SizeLimitCheckTestCase,
+    SizeLimitInvalidationTestCase,
     StructuredHostCheckTestCase,
     ThresholdOverrideCheckTestCase,
     WarningCacheIdentityTestCase,
@@ -53,6 +55,28 @@ from tests.integration.src.fensu.cli.main.helpers import (
     write_cli_no_fault_project,
     write_cli_stale_exception_project,
 )
+
+_BUCKET_FILES: dict[str, str] = {
+    "src/pkg/orders/_helpers/__init__.py": "",
+    "src/pkg/orders/_helpers/pricing/rates.py": "",
+    "src/pkg/orders/_helpers/shipping/zones.py": "",
+    "src/pkg/orders/_helpers/assets/rates.json": "{}",
+}
+_THIRD_BUCKET_FILES: dict[str, str] = {
+    **_BUCKET_FILES,
+    "src/pkg/orders/_helpers/tax/regions.py": "",
+}
+_PACKAGE_FILES: dict[str, str] = {
+    "src/pkg/__init__.py": "",
+    "src/pkg/orders/__init__.py": '"""Orders."""\n',
+    "src/pkg/orders/models.py": (
+        "# Order totals.\n\ncount: int = 1\nlimit: int = 2\n\nlabel: str = 'orders'  # shown\n"
+    ),
+}
+_LARGER_PACKAGE_FILES: dict[str, str] = {
+    **_PACKAGE_FILES,
+    "src/pkg/orders/models.py": "count: int = 1\nlimit: int = 2\nlabel: str = 'orders'\nmore: int = 3\n",
+}
 
 
 @pytest.mark.parametrize(
@@ -472,6 +496,152 @@ def test_given_nested_container_fault_when_running_cold_and_warm_then_reuses_all
     assert test_case.expected_warm_stats_fragment in warm_stderr.getvalue()
     assert test_case.expected_non_cacheable_fragment in cold_stderr.getvalue()
     assert test_case.expected_non_cacheable_fragment in warm_stderr.getvalue()
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        SizeLimitCheckTestCase(
+            description="helpers container at its bucket limit ignores empty and asset-only directories",
+            config='select = ["FFR312"]\n[thresholds]\nmax_helpers_container_buckets = 2\n',
+            files=_BUCKET_FILES,
+            directories=("src/pkg/orders/_helpers/empty",),
+            expected_exit_code=0,
+            expected_output_fragment="Found 0 faults",
+            expected_absent_fragment="FFR312",
+        ),
+        SizeLimitCheckTestCase(
+            description="helpers container over its bucket limit is reported at its anchor",
+            config='select = ["FFR312"]\n[thresholds]\nmax_helpers_container_buckets = 2\n',
+            files=_THIRD_BUCKET_FILES,
+            expected_exit_code=1,
+            expected_output_fragment=(
+                "FFR312  _helpers/ holds 3 buckets (limit 2); split the owning module by area "
+                "or move cohesive groups into their own module or crate."
+            ),
+            expected_absent_fragment="Threshold override:",
+        ),
+        SizeLimitCheckTestCase(
+            description="path override raises the bucket limit for one container",
+            config=(
+                'select = ["FFR312"]\n[thresholds]\nmax_helpers_container_buckets = 2\n'
+                "[[threshold_overrides]]\n"
+                'paths = ["src/pkg/orders/_helpers/__init__.py"]\n'
+                'reason = "Order helpers are being split."\n'
+                "thresholds = { max_helpers_container_buckets = 3 }\n"
+            ),
+            files=_THIRD_BUCKET_FILES,
+            expected_exit_code=0,
+            expected_output_fragment="Threshold override: max_helpers_container_buckets=3",
+            expected_absent_fragment="FFR312  ",
+        ),
+        SizeLimitCheckTestCase(
+            description="package at its code-line limit passes",
+            config='select = ["FFR602"]\n[thresholds]\nmax_crate_code_lines = 4\n',
+            files=_PACKAGE_FILES,
+            expected_exit_code=0,
+            expected_output_fragment="Found 0 faults",
+            expected_absent_fragment="FFR602",
+        ),
+        SizeLimitCheckTestCase(
+            description="package over its code-line limit is reported at the root anchor",
+            config='select = ["FFR602"]\n[thresholds]\nmax_crate_code_lines = 4\n',
+            files=_LARGER_PACKAGE_FILES,
+            expected_exit_code=1,
+            expected_output_fragment=(
+                "FFR602  package holds 5 code lines (limit 4); split it into packages by area."
+            ),
+            expected_absent_fragment="Threshold override:",
+        ),
+        SizeLimitCheckTestCase(
+            description="path override raises the code-line limit for one package",
+            config=(
+                'select = ["FFR602"]\n[thresholds]\nmax_crate_code_lines = 4\n'
+                "[[threshold_overrides]]\n"
+                'paths = ["src/pkg/**"]\n'
+                'reason = "The package is being split."\n'
+                "thresholds = { max_crate_code_lines = 5 }\n"
+            ),
+            files=_LARGER_PACKAGE_FILES,
+            expected_exit_code=0,
+            expected_output_fragment="Threshold override: max_crate_code_lines=5",
+            expected_absent_fragment="FFR602  ",
+        ),
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_size_limited_project_when_running_cached_check_then_reports_effective_limit(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: SizeLimitCheckTestCase,
+) -> None:
+    (tmp_path / "fensu.toml").write_text(
+        f'roots = ["src/pkg"]\n{test_case.config}', encoding="utf-8"
+    )
+    for relative, source in test_case.files.items():
+        path: Path = tmp_path / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(source, encoding="utf-8")
+    for relative in test_case.directories:
+        (tmp_path / relative).mkdir(parents=True)
+    monkeypatch.chdir(tmp_path)
+    cold_stdout: CaptureOutput = CaptureOutput()
+    warm_stdout: CaptureOutput = CaptureOutput()
+    warm_stderr: CaptureOutput = CaptureOutput()
+    argv: tuple[str, ...] = ("--no-color", "--cache", "--cache-stats")
+
+    cold_exit: int = run_check(argv=argv, stdout=cold_stdout)
+    warm_exit: int = run_check(argv=argv, stdout=warm_stdout, stderr=warm_stderr)
+
+    assert cold_exit == test_case.expected_exit_code
+    assert warm_exit == test_case.expected_exit_code
+    assert warm_stdout.getvalue() == cold_stdout.getvalue()
+    assert test_case.expected_output_fragment in cold_stdout.getvalue()
+    assert test_case.expected_absent_fragment not in cold_stdout.getvalue()
+    assert "misses=0" in warm_stderr.getvalue()
+    assert "non_cacheable=0" in warm_stderr.getvalue()
+
+
+@pytest.mark.parametrize(
+    "test_case",
+    [
+        SizeLimitInvalidationTestCase(
+            description="editing a counted module outside the anchor re-evaluates the package",
+            appended_source="extra: int = 3\n",
+            expected_cold_fragment="Found 0 faults",
+            expected_warm_fragment="FFR602  package holds 5 code lines (limit 4)",
+        )
+    ],
+    ids=lambda case: case.description,
+)
+def test_given_counted_module_edit_when_running_cached_check_then_code_lines_are_recounted(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    test_case: SizeLimitInvalidationTestCase,
+) -> None:
+    (tmp_path / "fensu.toml").write_text(
+        'roots = ["src/pkg"]\nselect = ["FFR602"]\n[thresholds]\nmax_crate_code_lines = 4\n',
+        encoding="utf-8",
+    )
+    for relative, source in _PACKAGE_FILES.items():
+        path: Path = tmp_path / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(source, encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    cold_stdout: CaptureOutput = CaptureOutput()
+    warm_stdout: CaptureOutput = CaptureOutput()
+    argv: tuple[str, ...] = ("--no-color", "--cache")
+
+    _ = run_check(argv=argv, stdout=cold_stdout)
+    models: Path = tmp_path / "src/pkg/orders/models.py"
+    models.write_text(
+        models.read_text(encoding="utf-8") + test_case.appended_source, encoding="utf-8"
+    )
+    warm_exit: int = run_check(argv=argv, stdout=warm_stdout)
+
+    assert test_case.expected_cold_fragment in cold_stdout.getvalue()
+    assert test_case.expected_warm_fragment in warm_stdout.getvalue()
+    assert warm_exit == 1
 
 
 @pytest.mark.parametrize(

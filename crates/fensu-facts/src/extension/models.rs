@@ -5,9 +5,10 @@ use std::sync::{Arc, OnceLock};
 #[cfg(feature = "python")]
 use pyo3::pyclass;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
-use ruff_python_ast::token::Tokens;
+use ruff_python_ast::token::{TokenKind, Tokens};
 use ruff_python_ast::{ModModule, PythonVersion};
 use ruff_python_parser::Parsed;
+use ruff_text_size::Ranged;
 
 use crate::facts::main::extract_annotations::extract_annotations;
 use crate::facts::main::extract_class_declarations::extract_class_declarations;
@@ -216,6 +217,35 @@ impl ProgramHandle {
             }
         }
         count + usize::from(trailing_text)
+    }
+
+    /// Return the number of lines holding code; blank and comment-only lines do not count.
+    pub fn code_line_count(&self) -> usize {
+        let index = self.index();
+        let mut count: usize = 0;
+        let mut last_line: u32 = 0;
+        for token in self.tokens().iter() {
+            if matches!(
+                token.kind(),
+                TokenKind::Comment
+                    | TokenKind::Newline
+                    | TokenKind::NonLogicalNewline
+                    | TokenKind::Indent
+                    | TokenKind::Dedent
+                    | TokenKind::EndOfFile
+            ) {
+                continue;
+            }
+            let start = token.range().start().to_usize();
+            let end = token.range().end().to_usize().saturating_sub(1).max(start);
+            let first = index.locate(start).line.max(last_line + 1);
+            let final_line = index.locate(end).line;
+            if final_line >= first {
+                count += (final_line - first + 1) as usize;
+                last_line = final_line;
+            }
+        }
+        count
     }
 
     pub fn dataclass_rows(&self) -> &[DataclassRow] {

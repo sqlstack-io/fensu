@@ -259,6 +259,7 @@ pub(crate) fn observe(
             "directory_entries" => directory_entries(&path, root)?,
             "glob" => glob_answers(&path, root, &query.argument)?,
             "python_anchor" => python_anchor(&path, root)?.into_iter().collect(),
+            "code_lines" => code_lines(&path, programs.get(query.path.as_str()).copied()),
             "public_facade" => {
                 vec![bool_text(programs.get(query.path.as_str()).is_some_and(
                     |program| program.is_public_facade(&query.argument),
@@ -269,6 +270,20 @@ pub(crate) fn observe(
         answers.insert(query.key(), value);
     }
     Ok(answers)
+}
+
+fn code_lines(path: &Path, program: Option<&ProgramHandle>) -> Vec<String> {
+    if let Some(program) = program {
+        return vec![program.code_line_count().to_string()];
+    }
+    let Ok(source) = fs::read_to_string(path) else {
+        return Vec::new();
+    };
+    let version = python_version();
+    match ProgramHandle::parse_source(&source, version.major, version.minor) {
+        Ok(program) => vec![program.code_line_count().to_string()],
+        Err(_) => Vec::new(),
+    }
 }
 
 pub(crate) fn directory_entries(path: &Path, root: &Path) -> Result<Vec<String>, String> {

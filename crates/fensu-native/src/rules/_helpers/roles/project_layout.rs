@@ -6,21 +6,25 @@ use crate::rules::_helpers::generated_policy::{
     FFR301_FORBIDDEN_BUCKET_NAMES, FFR302_FORBIDDEN_BUCKET_NAMES,
 };
 use crate::rules::_helpers::role_project_layout_paths::{
-    direct_modules, domain_dir, domain_roots, file_name, forbidden_bucket, grouping_roots,
-    leaf_dir, main_entries, mixed_domain, named_subdomains, natural_list, ownership_roots,
-    prefix_groups, python_anchor, recursive_python, repository_path, role_package, scope_root,
-    HELPERS, INIT_FILE, ROLE_NAMES, ROOT_SCOPE,
+    code_lines_query, direct_modules, directory_entries, domain_dir, domain_roots, file_name,
+    forbidden_bucket, grouping_roots, leaf_dir, main_entries, mixed_domain, named_subdomains,
+    natural_list, ownership_roots, prefix_groups, python_anchor, recursive_python, repository_path,
+    role_package, scope_root, HELPERS, INIT_FILE, PYTHON_CACHE, ROLE_NAMES, ROOT_SCOPE,
 };
 use crate::rules::_helpers::roles::path_fault;
 use crate::rules::constants::{
-    HELPERS_PACKAGE_LAYOUT_CODE, LEAF_MAIN_BOUNDARY_CODE, MAIN_PACKAGE_LAYOUT_CODE,
-    SHARED_DOMAIN_PREFIX_CODE, TOP_LEVEL_DOMAIN_SHAPE_CODE,
+    HELPERS_CONTAINER_BUCKETS_CODE, HELPERS_PACKAGE_LAYOUT_CODE, LEAF_MAIN_BOUNDARY_CODE,
+    MAIN_PACKAGE_LAYOUT_CODE, PACKAGE_CODE_LINES_CODE, SHARED_DOMAIN_PREFIX_CODE,
+    TOP_LEVEL_DOMAIN_SHAPE_CODE,
 };
 use crate::rules::models::{NativeFaultRow, NativeRuleContext};
 
 const MAIN_ROLE: &str = "main";
 const MAX_HELPERS_MODULES_THRESHOLD: &str = "max_helpers_container_modules";
 const MAX_MAIN_MODULES_THRESHOLD: &str = "max_main_container_modules";
+const MAX_HELPERS_BUCKETS_THRESHOLD: &str = "max_helpers_container_buckets";
+const MAX_CODE_LINES_THRESHOLD: &str = "max_crate_code_lines";
+const THOUSANDS_GROUP: usize = 3;
 const MAX_ROLE_DEPTH_THRESHOLD: &str = "max_role_depth";
 const MINIMUM_SHARED_PREFIX_THRESHOLD: &str = "min_shared_domain_prefix_packages";
 const TOOLING_SCOPE: &str = "tooling";
@@ -50,6 +54,8 @@ pub(crate) fn project_layout_faults(
     match code {
         HELPERS_PACKAGE_LAYOUT_CODE => Some(container_faults(code, context, HELPERS)),
         MAIN_PACKAGE_LAYOUT_CODE => Some(container_faults(code, context, MAIN_ROLE)),
+        HELPERS_CONTAINER_BUCKETS_CODE => Some(bucket_faults(code, context)),
+        PACKAGE_CODE_LINES_CODE => Some(code_line_faults(code, context)),
         TOP_LEVEL_DOMAIN_SHAPE_CODE => Some(domain_shape_faults(code, context)),
         SHARED_DOMAIN_PREFIX_CODE => Some(shared_prefix_faults(code, context)),
         LEAF_MAIN_BOUNDARY_CODE => Some(leaf_main_faults(code, context)),
@@ -123,6 +129,80 @@ fn container_faults(code: &str, context: &NativeRuleContext, role: &str) -> Vec<
         );
     }
     faults
+}
+
+fn bucket_faults(code: &str, context: &NativeRuleContext) -> Vec<NativeFaultRow> {
+    let Some(container) = role_package(context, HELPERS) else {
+        return Vec::new();
+    };
+    if python_anchor(&container) != Some(repository_path(context)) {
+        return Vec::new();
+    }
+    let buckets = directory_entries(&container)
+        .into_iter()
+        .filter(|entry| {
+            file_name(entry) != PYTHON_CACHE
+                && entry.is_dir()
+                && !recursive_python(entry).is_empty()
+        })
+        .count();
+    let limit = context
+        .thresholds
+        .get(MAX_HELPERS_BUCKETS_THRESHOLD)
+        .copied()
+        .unwrap_or_default() as usize;
+    if buckets <= limit {
+        return Vec::new();
+    }
+    vec![message_fault(
+        code,
+        context,
+        format!(
+            "{HELPERS}/ holds {buckets} buckets (limit {limit}); split the owning module by area or move cohesive groups into their own module or crate."
+        ),
+    )]
+}
+
+fn code_line_faults(code: &str, context: &NativeRuleContext) -> Vec<NativeFaultRow> {
+    if context.scope != ROOT_SCOPE {
+        return Vec::new();
+    }
+    let mut total: usize = 0;
+    for path in recursive_python(&scope_root(context)) {
+        let observation = context.observation(&code_lines_query(context, &path));
+        if let Some(Ok(lines)) = observation.first().map(|value| value.parse::<usize>()) {
+            total += lines;
+        }
+    }
+    let limit = context
+        .thresholds
+        .get(MAX_CODE_LINES_THRESHOLD)
+        .copied()
+        .unwrap_or_default() as usize;
+    if total <= limit {
+        return Vec::new();
+    }
+    vec![message_fault(
+        code,
+        context,
+        format!(
+            "package holds {} code lines (limit {}); split it into packages by area.",
+            grouped(total),
+            grouped(limit)
+        ),
+    )]
+}
+
+fn grouped(value: usize) -> String {
+    let digits = value.to_string();
+    let mut text = String::new();
+    for (index, digit) in digits.chars().enumerate() {
+        if index > 0 && (digits.len() - index).is_multiple_of(THOUSANDS_GROUP) {
+            text.push(',');
+        }
+        text.push(digit);
+    }
+    text
 }
 
 fn append_depth_faults(

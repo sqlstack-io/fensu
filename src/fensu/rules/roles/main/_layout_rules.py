@@ -59,6 +59,11 @@ def layout_rules() -> tuple[RuleSpec, ...]:
             code=RoleCode.PUBLIC_FACADE_IMPORT_DIRECTION,
             slug="public-facade-import-direction",
         ),
+        _rule(
+            code=RoleCode.HELPERS_CONTAINER_BUCKETS,
+            slug="helpers-container-buckets",
+            execution_owner=ExecutionOwner.PACKAGE,
+        ),
     )
 
 

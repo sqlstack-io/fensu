@@ -38,7 +38,7 @@ from tests.unit.src.fensu.rules.authoring._test_types import EnumMembersTestCase
             expected_members={"CORE": "core", "PACK": "pack", "CUSTOM": "custom"},
         ),
         EnumMembersTestCase(
-            description="Threshold has all twenty-five named limits",
+            description="Threshold has all twenty-seven named limits",
             actual_members={member.name: member.value for member in Threshold},
             expected_members={
                 "MAX_STATEMENTS": "max_statements",
@@ -47,6 +47,8 @@ from tests.unit.src.fensu.rules.authoring._test_types import EnumMembersTestCase
                 "MAX_FILE_LINES": "max_file_lines",
                 "MAX_HELPERS_CONTAINER_MODULES": "max_helpers_container_modules",
                 "MAX_MAIN_CONTAINER_MODULES": "max_main_container_modules",
+                "MAX_HELPERS_CONTAINER_BUCKETS": "max_helpers_container_buckets",
+                "MAX_CRATE_CODE_LINES": "max_crate_code_lines",
                 "MAX_ROLE_DEPTH": "max_role_depth",
                 "MAX_POSITIONAL_ARGS": "max_positional_args",
                 "MAX_ARGUMENTS": "max_arguments",

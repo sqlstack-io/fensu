@@ -14,6 +14,7 @@ pub fn register_fact_functions(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(bindings::annotation_facts, module)?)?;
     module.add_function(wrap_pyfunction!(bindings::backend_version, module)?)?;
     module.add_function(wrap_pyfunction!(bindings::check_syntax, module)?)?;
+    module.add_function(wrap_pyfunction!(bindings::code_line_count, module)?)?;
     module.add_function(wrap_pyfunction!(bindings::dataclass_facts, module)?)?;
     module.add_function(wrap_pyfunction!(bindings::project_facts, module)?)?;
     module.add_function(wrap_pyfunction!(bindings::list_syntax_nodes, module)?)?;

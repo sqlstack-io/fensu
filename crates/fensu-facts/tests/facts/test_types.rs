@@ -52,3 +52,9 @@ pub(crate) struct ModuleDeclarationRowsTestCase {
     pub(crate) expected_static_all_names: &'static [&'static str],
     pub(crate) expected_runtime_imported_bindings: &'static [&'static str],
 }
+
+pub(crate) struct CodeLineCountTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) source: &'static str,
+    pub(crate) expected_code_lines: usize,
+}

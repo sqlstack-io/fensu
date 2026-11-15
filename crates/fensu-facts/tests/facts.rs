@@ -1,3 +1,5 @@
+#[path = "facts/test_code_lines.rs"]
+mod test_code_lines;
 #[path = "facts/test_enumerate.rs"]
 mod test_enumerate;
 #[path = "facts/test_mapping.rs"]

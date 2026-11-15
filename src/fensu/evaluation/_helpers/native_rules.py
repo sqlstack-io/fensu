@@ -4,11 +4,15 @@ from __future__ import annotations
 
 import json
 from collections.abc import Mapping
+from importlib import import_module
 from pathlib import Path
+from types import ModuleType
 
+from fensu.analysis.constants import NATIVE_FACT_MODULE_NAME
 from fensu.analysis.exceptions import PythonSourceParseError
 from fensu.analysis.main.associate_rule_tests import associate_rule_tests
 from fensu.analysis.main.decode_source import decode_python_source
+from fensu.analysis.main.parse_native_program import parse_native_program
 from fensu.analysis.models import (
     EvaluateRuleCallFact,
     ProjectFunctionFact,
@@ -499,7 +503,24 @@ def _observe_query_plan(
                         )
                     )
                 ]
+        elif kind == NativeProjectQueryKind.CODE_LINES:
+            answers[key] = _code_line_answer(
+                project=project, requester=target.scoped_file.path, path=path
+            )
     return answers
+
+
+def _code_line_answer(
+    *, project: EvaluationProjectAnalysis, requester: Path, path: Path
+) -> list[str]:
+    source: str | None = project.native_source(requester=requester, path=path)
+    if source is None:
+        return []
+    program: object | None = parse_native_program(source=source)
+    if program is None:
+        return []
+    native: ModuleType = import_module(NATIVE_FACT_MODULE_NAME)
+    return [str(native.code_line_count(program))]
 
 
 def _bool_text(value: bool) -> str:

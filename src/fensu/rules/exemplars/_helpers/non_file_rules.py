@@ -21,6 +21,9 @@ _SEPARATOR: str = "_"
 _MINIMUM_DOMAIN_PARTS: int = 2
 _MINIMUM_SUBDOMAIN_PARTS: int = 3
 _NATURAL_PAIR_SIZE: int = 2
+_COMMENT_PREFIX: str = "#"
+_LINE_SEPARATOR: str = "\n"
+_STRING_NODE_KINDS: tuple[str, ...] = ("Constant", "JoinedStr")
 _ROLE_NAMES: frozenset[str] = frozenset(
     {"main", _HELPERS, "classes", "models", "types", "constants", "exceptions"}
 )
@@ -213,6 +216,64 @@ def package_layout_impl(
             ctx.path_fault(message=f"{physical}/ bucket '{name}/' uses a runtime role name")
         )
     return faults
+
+
+def helpers_container_buckets_impl(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
+    """Bound the number of Python-containing buckets in one _helpers/ container."""
+
+    del module
+    parts: tuple[str, ...] = ctx.relative_parts()
+    role_index: int | None = next(
+        (index for index, part in enumerate(parts[:-1]) if part in _ROLE_NAMES), None
+    )
+    if role_index is None or parts[role_index] != _HELPERS:
+        return []
+    container: Path = ctx.scope_root().joinpath(*parts[: role_index + 1])
+    if ctx.project.python_anchor(requester=ctx.path, path=container) != ctx.path:
+        return []
+    buckets: int = 0
+    for entry in ctx.project.directory_entries(requester=ctx.path, path=container):
+        if entry.name == _PYTHON_CACHE or not ctx.project.is_dir(requester=ctx.path, path=entry):
+            continue
+        if ctx.project.glob(requester=ctx.path, path=entry, pattern="*.py", recursive=True):
+            buckets += 1
+    limit: int = ctx.threshold(name=Threshold.MAX_HELPERS_CONTAINER_BUCKETS, path=ctx.path)
+    if buckets <= limit:
+        return []
+    return [
+        ctx.path_fault(
+            message=(
+                f"{_HELPERS}/ holds {buckets} buckets (limit {limit}); split the owning module "
+                "by area or move cohesive groups into their own module or crate."
+            )
+        )
+    ]
+
+
+def package_code_lines_impl(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
+    """Bound the code lines beneath one runtime root."""
+
+    del module
+    if ctx.scope() is not ScopeName.ROOT:
+        return []
+    total: int = 0
+    for path in sorted(
+        ctx.project.glob(requester=ctx.path, path=ctx.scope_root(), pattern="*.py", recursive=True)
+    ):
+        analysis: Any = ctx.project.analysis(requester=ctx.path, path=path)
+        if analysis is not None:
+            total += _code_line_count(analysis=analysis)
+    limit: int = ctx.threshold(name=Threshold.MAX_CRATE_CODE_LINES, path=ctx.path)
+    if total <= limit:
+        return []
+    return [
+        ctx.path_fault(
+            message=(
+                f"package holds {total:,} code lines (limit {limit:,}); "
+                "split it into packages by area."
+            )
+        )
+    ]
 
 
 def top_level_domain_shape_impl(*, module: ast.Module, ctx: RuleContext) -> list[Fault]:
@@ -491,6 +552,23 @@ def _effective_ownership_root(*, path: Path, roots: tuple[Path, ...]) -> Path | 
         root for root in roots if path == root or path.is_relative_to(root)
     )
     return max(matches, key=lambda item: len(item.parts), default=None)
+
+
+def _code_line_count(*, analysis: Any) -> int:
+    comment_lines: set[int] = {fact.line for fact in analysis.facts.comments()}
+    code_lines: set[int] = set()
+    for number, text in enumerate(analysis.text.source.split(_LINE_SEPARATOR), start=1):
+        stripped: str = text.strip()
+        if not stripped:
+            continue
+        if number in comment_lines and stripped.startswith(_COMMENT_PREFIX):
+            continue
+        code_lines.add(number)
+    for kind in _STRING_NODE_KINDS:
+        for handle in analysis.syntax.handles(kind=kind):
+            source_range: Any = analysis.syntax.range(handle)
+            code_lines.update(range(source_range.start.line, source_range.end.line + 1))
+    return len(code_lines)
 
 
 def _natural_list(values: tuple[str, ...]) -> str:

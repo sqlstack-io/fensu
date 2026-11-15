@@ -240,6 +240,15 @@ pub(crate) struct ThresholdPrecedenceTestCase {
     pub(crate) expected_absent: &'static str,
 }
 
+pub(crate) struct SizeLimitCheckTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) config: &'static str,
+    pub(crate) files: &'static [(&'static str, &'static str)],
+    pub(crate) expected_exit_code: i32,
+    pub(crate) expected_present: &'static [&'static str],
+    pub(crate) expected_absent: &'static str,
+}
+
 pub(crate) struct RuleOptionsCheckRoutingTestCase {
     pub(crate) description: &'static str,
     pub(crate) config: &'static str,

@@ -68,6 +68,13 @@ def role_rule_details(code: RoleCode) -> tuple[str, str]:
             "Import the facade's owning domain directly; reserve root facade imports for external "
             "consumers, tests, and tooling.",
         ),
+        RoleCode.HELPERS_CONTAINER_BUCKETS: (
+            "_helpers/ containers must hold a bounded number of buckets",
+            "Split the owning module by area or move cohesive groups into their own module or "
+            "crate. A bucket is a direct subdirectory of _helpers/ that contains at least one "
+            "Python file at any depth; empty, __pycache__, and asset-only directories do not "
+            "count. Direct modules are limited separately by FFR301.",
+        ),
         RoleCode.ENTRY_MODULE_SHAPE: (
             "main/ entry modules must expose one focused public function",
             "Every non-__init__.py module whose first structural role is main is an entry, "
@@ -122,6 +129,13 @@ def role_rule_details(code: RoleCode) -> tuple[str, str]:
             "source files must stay below the configured line limit",
             "Split the file by a cohesive role or concern instead of extracting arbitrary "
             "numbered fragments.",
+        ),
+        RoleCode.TOP_LEVEL_PACKAGE_CODE_LINES: (
+            "top-level runtime packages must stay below the configured code-line limit",
+            "Split the package into packages by area. Code lines are the lines of every .py file "
+            "beneath the runtime root that hold a token other than a comment; blank lines and "
+            "comment-only lines do not count, docstrings and other strings do. Test and tooling "
+            "roots are not counted.",
         ),
         RoleCode.DESCRIPTIVE_RULE_MODULE_NAMES: (
             "rule module filenames must describe their policy rather than repeat one rule code",
