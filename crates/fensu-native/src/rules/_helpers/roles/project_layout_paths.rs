@@ -256,7 +256,15 @@ pub(crate) fn directory_entries(path: &Path) -> Vec<PathBuf> {
         .collect()
 }
 
+/// The configured root that owns the current file, falling back to the scope's first root.
 pub(crate) fn scope_root(context: &NativeRuleContext) -> PathBuf {
+    if !context.relative_parts.is_empty() {
+        let mut root = repository_path(context);
+        for _ in &context.relative_parts {
+            root.pop();
+        }
+        return root;
+    }
     let relative = context
         .scope_roots
         .iter()

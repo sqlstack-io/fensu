@@ -330,7 +330,7 @@ the code lines in each Cargo workspace crate. Both use `max_crate_code_lines`
 | --- | --- | --- |
 | Sources | Every `.py` file beneath the runtime root. | The crate's library and binary sources under `src/`. |
 | Code line | A line holding any token other than a comment. | A line holding any token other than a comment. |
-| Not counted | Blank lines, comment-only lines, test and tooling roots. | Blank lines, comments and doc comments, `tests/` targets, inline test trees, `#[cfg(test)]` items. |
+| Not counted | Blank lines, comment-only lines, test and tooling roots. | Blank lines, comments and doc comments, `tests/` targets, inline test trees, top-level `#[cfg(test)]` items. |
 | Strings | Docstrings and other strings count, every line they span. | String literals count, every line they span. |
 | Reported at | The package's `__init__.py`. | The crate's `Cargo.toml`. |
 

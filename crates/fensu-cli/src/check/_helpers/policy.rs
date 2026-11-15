@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::fs;
 use std::path::{Component, Path, PathBuf};
 
@@ -210,12 +210,11 @@ fn wildcard_matches(path: &str, pattern: &str) -> bool {
 
 pub(crate) fn check_identity(request: CheckIdentityRequest<'_>) -> Result<String, String> {
     let CheckIdentityRequest {
-        root,
-        project_root,
         config,
         sources,
         project_inputs,
         warnings,
+        ..
     } = request;
     let mut digest = Sha256::new();
     digest.update(b"fensu-native-check-v6\0");
@@ -265,7 +264,7 @@ pub(crate) fn check_identity(request: CheckIdentityRequest<'_>) -> Result<String
         digest_text(&mut digest, &input.fingerprint);
         digest.update([u8::from(input.present)]);
     }
-    digest_project_observations(&mut digest, root, project_root, config)?;
+    digest_project_observations(&mut digest, request)?;
     Ok(format!("{:x}", digest.finalize()))
 }
 
@@ -276,10 +275,19 @@ fn digest_text(digest: &mut Sha256, value: &str) {
 
 fn digest_project_observations(
     digest: &mut Sha256,
-    root: &Path,
-    project_root: &Path,
-    config: &Config,
+    request: CheckIdentityRequest<'_>,
 ) -> Result<(), String> {
+    let CheckIdentityRequest {
+        root,
+        project_root,
+        config,
+        sources,
+        ..
+    } = request;
+    let selected: BTreeSet<&str> = sources
+        .iter()
+        .map(|source| source.repository_path.as_str())
+        .collect();
     let mut entries: BTreeMap<String, (u8, PathBuf)> = BTreeMap::new();
     for configured_root in config
         .roots
@@ -335,7 +343,13 @@ fn digest_project_observations(
     for (path, (kind, filesystem_path)) in entries {
         digest.update(path.as_bytes());
         digest.update([kind]);
-        if filesystem_path.extension().and_then(|value| value.to_str()) == Some("pyi") {
+        let unselected_python = kind == b'f'
+            && !selected.contains(path.as_str())
+            && matches!(
+                filesystem_path.extension().and_then(|value| value.to_str()),
+                Some("py" | "pyi")
+            );
+        if unselected_python {
             let content = fs::read(&filesystem_path).map_err(|error| {
                 format!(
                     "Could not fingerprint Python support file {}: {error}",

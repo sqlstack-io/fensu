@@ -210,8 +210,8 @@ _REMEDIATIONS: dict[str, str] = {
     "RSR602": (
         "Split the crate into crates by area. Code lines are the lines of the crate's non-test "
         "Rust sources that hold a token other than a comment; blank lines, comments, and doc "
-        "comments do not count, and tests/ targets, inline test trees, and #[cfg(test)] items "
-        "are excluded."
+        "comments do not count, and tests/ targets, inline test trees, and top-level "
+        "#[cfg(test)] items are excluded."
     ),
     "RSL106": (
         "Embed an existing file using a literal path within the including source domain; "

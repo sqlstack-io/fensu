@@ -112,7 +112,7 @@ reason = "The orders crate is being split by area."
 A bucket is a subdirectory of `_helpers/` that holds at least one non-test Rust
 module. Crate code lines are the lines of `src/` sources that hold a token other
 than a comment; doc comments, `tests/` targets, inline test trees, and
-`#[cfg(test)]` items do not count. See
+top-level `#[cfg(test)]` items do not count. See
 [package and crate size](https://fensu.io/docs/concepts/architecture-model/#package-and-crate-size).
 
 ## Comments and tuple types

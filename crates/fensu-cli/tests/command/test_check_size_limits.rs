@@ -1,5 +1,5 @@
 use crate::helpers::{run_check, run_check_with, write};
-use crate::test_types::SizeLimitCheckTestCase;
+use crate::test_types::{SizeLimitCheckTestCase, SizeLimitRecountTestCase};
 
 const PYTHON_BUCKETS: &[(&str, &str)] = &[
     ("src/pkg/orders/_helpers/__init__.py", ""),
@@ -16,6 +16,25 @@ const PYTHON_PACKAGE: &[(&str, &str)] = &[
         "src/pkg/orders/models.py",
         "# Order totals.\n\ncount: int = 1\nlimit: int = 2\n\nlabel: str = 'orders'  # shown\n",
     ),
+];
+
+const TWO_PACKAGES_LARGE_FIRST: &[(&str, &str)] = &[
+    ("src/alpha/__init__.py", "a = 1\nb = 2\nc = 3\nd = 4\n"),
+    ("src/beta/__init__.py", "a = 1\n"),
+];
+
+const TWO_PACKAGES_LARGE_SECOND: &[(&str, &str)] = &[
+    ("src/alpha/__init__.py", "a = 1\n"),
+    ("src/beta/__init__.py", "a = 1\nb = 2\nc = 3\nd = 4\n"),
+];
+
+const SECOND_PACKAGE_BUCKETS: &[(&str, &str)] = &[
+    ("src/alpha/__init__.py", ""),
+    ("src/beta/__init__.py", ""),
+    ("src/beta/orders/_helpers/__init__.py", ""),
+    ("src/beta/orders/_helpers/pricing/rates.py", ""),
+    ("src/beta/orders/_helpers/shipping/zones.py", ""),
+    ("src/beta/orders/_helpers/tax/regions.py", ""),
 ];
 
 const RUST_WORKSPACE: &[(&str, &str)] = &[
@@ -91,6 +110,30 @@ fn given_size_limits_when_checking_natively_then_overrides_exceptions_and_cache_
             expected_exit_code: 0,
             expected_present: &["Threshold override: max_crate_code_lines=4", "Found 0 faults"],
             expected_absent: "FFR602  ",
+        },
+        SizeLimitCheckTestCase {
+            description: "each runtime root counts only its own package when the first is large",
+            config: "roots = [\"src/alpha\", \"src/beta\"]\nselect = [\"FFR602\"]\n[thresholds]\nmax_crate_code_lines = 3\n",
+            files: TWO_PACKAGES_LARGE_FIRST,
+            expected_exit_code: 1,
+            expected_present: &["--> src/alpha/__init__.py", "FFR602  package holds 4 code lines (limit 3)", "Found 1 fault"],
+            expected_absent: "--> src/beta",
+        },
+        SizeLimitCheckTestCase {
+            description: "each runtime root counts only its own package when the second is large",
+            config: "roots = [\"src/alpha\", \"src/beta\"]\nselect = [\"FFR602\"]\n[thresholds]\nmax_crate_code_lines = 3\n",
+            files: TWO_PACKAGES_LARGE_SECOND,
+            expected_exit_code: 1,
+            expected_present: &["--> src/beta/__init__.py", "FFR602  package holds 4 code lines (limit 3)", "Found 1 fault"],
+            expected_absent: "--> src/alpha",
+        },
+        SizeLimitCheckTestCase {
+            description: "helpers container under the second runtime root is counted",
+            config: "roots = [\"src/alpha\", \"src/beta\"]\nselect = [\"FFR312\"]\n[thresholds]\nmax_helpers_container_buckets = 2\n",
+            files: SECOND_PACKAGE_BUCKETS,
+            expected_exit_code: 1,
+            expected_present: &["--> src/beta/orders/_helpers/__init__.py", "FFR312  _helpers/ holds 3 buckets (limit 2)"],
+            expected_absent: "--> src/alpha",
         },
         SizeLimitCheckTestCase {
             description: "helpers container over its bucket limit is reported at the container",
@@ -209,5 +252,53 @@ fn given_size_limits_when_checking_natively_then_overrides_exceptions_and_cache_
         );
         assert_eq!(cold.stdout, warm.stdout, "{}", test_case.description);
         assert_eq!(cold.stdout, output.stdout, "{}", test_case.description);
+    }
+}
+
+#[test]
+fn given_a_counted_file_changes_when_checking_with_cache_then_the_count_is_refreshed() {
+    let test_cases = [SizeLimitRecountTestCase {
+        description: "a counted file excluded from evaluation grows past the limit",
+        config: "roots = [\"src/pkg\"]\nselect = [\"FFR602\"]\n[thresholds]\nmax_crate_code_lines = 3\n[evaluation]\nexclude = [\"src/pkg/generated.py\"]\n",
+        files: &[
+            ("src/pkg/__init__.py", "a = 1\nb = 2\n"),
+            ("src/pkg/generated.py", "c = 3\n"),
+        ],
+        edited_file: ("src/pkg/generated.py", "c = 3\nd = 4\ne = 5\n"),
+        expected_exit_code_before: 0,
+        expected_exit_code_after: 1,
+        expected_after: "FFR602  package holds 5 code lines (limit 3)",
+    }];
+    for test_case in &test_cases {
+        let repository = tempfile::tempdir().expect("temporary repository");
+        write(repository.path().join("fensu.toml"), test_case.config);
+        for (path, source) in test_case.files {
+            write(repository.path().join(path), source);
+        }
+        let before = run_check_with(repository.path(), &["--cache"]);
+        let warm = run_check_with(repository.path(), &["--cache"]);
+        let (edited_path, edited_source) = test_case.edited_file;
+        write(repository.path().join(edited_path), edited_source);
+        let after = run_check_with(repository.path(), &["--cache"]);
+
+        let stdout = String::from_utf8_lossy(&after.stdout);
+        assert_eq!(
+            before.status.code(),
+            Some(test_case.expected_exit_code_before),
+            "{}",
+            test_case.description
+        );
+        assert_eq!(before.stdout, warm.stdout, "{}", test_case.description);
+        assert_eq!(
+            after.status.code(),
+            Some(test_case.expected_exit_code_after),
+            "{}: {stdout}",
+            test_case.description
+        );
+        assert!(
+            stdout.contains(test_case.expected_after),
+            "{}: {stdout}",
+            test_case.description
+        );
     }
 }

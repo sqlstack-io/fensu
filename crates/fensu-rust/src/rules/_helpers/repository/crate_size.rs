@@ -47,7 +47,7 @@ pub(crate) fn check(
                 grouped(total),
                 grouped(limit)
             ),
-            remediation: "split the crate into crates by area; blank lines, comments, doc comments, tests/ targets, inline test trees, and #[cfg(test)] items do not count",
+            remediation: "split the crate into crates by area; blank lines, comments, doc comments, tests/ targets, inline test trees, and top-level #[cfg(test)] items do not count",
         })
     })
 }

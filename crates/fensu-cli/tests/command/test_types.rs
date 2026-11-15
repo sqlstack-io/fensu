@@ -249,6 +249,16 @@ pub(crate) struct SizeLimitCheckTestCase {
     pub(crate) expected_absent: &'static str,
 }
 
+pub(crate) struct SizeLimitRecountTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) config: &'static str,
+    pub(crate) files: &'static [(&'static str, &'static str)],
+    pub(crate) edited_file: (&'static str, &'static str),
+    pub(crate) expected_exit_code_before: i32,
+    pub(crate) expected_exit_code_after: i32,
+    pub(crate) expected_after: &'static str,
+}
+
 pub(crate) struct RuleOptionsCheckRoutingTestCase {
     pub(crate) description: &'static str,
     pub(crate) config: &'static str,

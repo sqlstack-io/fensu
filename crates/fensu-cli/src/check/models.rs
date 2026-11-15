@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 use crate::analyzer::AnalyzerId;
 use crate::models::{Config, Fault, ProjectInput, ScopedSource, ThresholdUse};
 
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug)]
 pub(crate) struct CheckIdentityRequest<'a> {
     pub(crate) root: &'a Path,
     pub(crate) project_root: &'a Path,
