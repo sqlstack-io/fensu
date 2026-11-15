@@ -95,12 +95,14 @@ Representative rules:
 | `FFR307` | top-level-direct-modules | Runtime roots and top-level domains do not contain ad hoc direct modules; deterministic root [public facades](/concepts/architecture-model#root-public-facades) are exempt. |
 | `FFR308` | shared-domain-prefix | Repeated first-token domain prefixes become an owning branch domain. See [shared prefixes](/concepts/architecture-model#shared-domain-prefixes). |
 | `FFR310` | public-facade-import-direction | Runtime code imports a facade's owning domain directly; facade imports are reserved for tests, tooling, and external consumers. |
+| `FFR312` | helpers-container-buckets | A grouped `_helpers/` holds a bounded number of buckets that contain code. See [containers](/concepts/architecture-model#containers-flat-or-grouped). |
 | `FFR401` | entry-module-shape | An entry file defines one public function and at most two private ones (a limit on functions in the file, not on what they may call). See [entry modules](/concepts/architecture-model#entry-modules). |
 | `FFR402` | init-module-empty | `__init__.py` is docstring-only. |
 | `FFR403` | no-reexport-shim | Internal modules do not exist only to re-export imports; deterministic root public facades are exempt. |
 | `FFR406` | public-surface-shape | A root `__init__.py` contains only a docstring, imports, and at most one `__all__` declaration. |
 | `FFR501` | classes-one-class-per-module | One class per module in `classes/`. |
 | `FFR601` | source-file-line-count | A file must not exceed the line-count threshold. |
+| `FFR602` | package-code-lines | A top-level package must not exceed the code-line threshold. See [package and crate size](/concepts/architecture-model#package-and-crate-size). |
 | `FFR701` | tooling-entrypoint-shape | A direct tooling script is a thin command adapter. |
 | `FFR704` | rules-role-content | A `rules/` module holds only imports and `@rule` functions. |
 | `FFR706` | descriptive-rule-module-names | Rule modules use policy names, not filenames such as `fft104.py` or `xac001.py`. |

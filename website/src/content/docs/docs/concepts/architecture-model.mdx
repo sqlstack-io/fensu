@@ -261,7 +261,10 @@ surface described by `FFR406`.
 
 Mixing the two shapes in one container is a fault (`FFR301` for `_helpers/`,
 `FFR302` for `main/`): once one bucket exists, direct modules may not sit beside
-it. Bucket nesting is capped by `max_role_depth` (default 1), so a bucket does not
+it. A grouped `_helpers/` container holds at most `max_helpers_container_buckets`
+buckets (default 15; `FFR312`, and `FPRSR312` for Rust). Only buckets that hold
+code count: a Python file at any depth, or a non-test Rust module. Empty and
+asset-only directories do not count. Bucket nesting is capped by `max_role_depth` (default 1), so a bucket does not
 grow buckets of its own. Bucket names must name a concern: a role name (`main`,
 `helpers`, `classes`, ...) as a bucket name faults under the same layout rules,
 and generic names (`util`, `common`, `misc`, ...) fault under `FFR204`.
@@ -317,6 +320,25 @@ work lives in `_helpers/`. The rule would only fire if the file grew a second pu
 function, a third private function, or a top-level statement that is not an import
 or a `def`.
 
+## Package and crate size
+
+`FFR602` limits the code lines in each top-level runtime package, and `FPRSR602`
+the code lines in each Cargo workspace crate. Both use `max_crate_code_lines`
+(default 75,000) and count lines, not files:
+
+| Counted | Python package | Rust crate |
+| --- | --- | --- |
+| Sources | Every `.py` file beneath the runtime root. | The crate's library and binary sources under `src/`. |
+| Code line | A line holding any token other than a comment. | A line holding any token other than a comment. |
+| Not counted | Blank lines, comment-only lines, test and tooling roots. | Blank lines, comments and doc comments, `tests/` targets, inline test trees, `#[cfg(test)]` items. |
+| Strings | Docstrings and other strings count, every line they span. | String literals count, every line they span. |
+| Reported at | The package's `__init__.py`. | The crate's `Cargo.toml`. |
+
+A line with code and a trailing comment counts once. To cap one package or crate
+at a different size, use a
+[path override](/concepts/configuration#path-scoped-threshold-overrides) on the
+reported path.
+
 ## Default thresholds
 
 Several shape rules are governed by numeric thresholds. Fensu ships these defaults,
@@ -333,6 +355,8 @@ all overridable in configuration:
 | `max_file_lines` | 2000 | Lines in a source file. |
 | `max_helpers_container_modules` | 10 | Modules in a `_helpers/` container: the flat package, or each bucket. |
 | `max_main_container_modules` | 20 | Entry modules in a `main/` container: the flat package, or each bucket. |
+| `max_helpers_container_buckets` | 15 | Buckets holding code in a grouped `_helpers/` container. |
+| `max_crate_code_lines` | 75000 | Code lines in a top-level package or Rust crate; see [package and crate size](#package-and-crate-size). |
 | `max_role_depth` | 1 | Bucket nesting depth inside a grouped `main/` or `_helpers/` package. |
 | `max_script_entrypoint_lines` | 80 | Lines in a direct tooling script entrypoint. |
 | `min_shared_domain_prefix_packages` | 2 | Sibling domains sharing a first-token owner prefix before FFR308 faults. `0` disables it. |

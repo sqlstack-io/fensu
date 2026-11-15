@@ -377,6 +377,15 @@ fn repository_lines(context: &SkillContext) -> Result<Vec<String>, String> {
         .get("max_role_depth")
         .copied()
         .ok_or_else(|| "Effective configuration has no max_role_depth threshold.".to_owned())?;
+    let bucket_limit = role_threshold(context, "helpers", "max_helpers_container_buckets")?;
+    let code_line_limit = context
+        .config
+        .thresholds
+        .get("max_crate_code_lines")
+        .copied()
+        .ok_or_else(|| {
+            "Effective configuration has no max_crate_code_lines threshold.".to_owned()
+        })?;
     let import_root = context
         .config
         .roots
@@ -385,7 +394,7 @@ fn repository_lines(context: &SkillContext) -> Result<Vec<String>, String> {
         .and_then(|name| name.to_str())
         .unwrap_or(".");
     let mut profile = profile_lines("repository")?;
-    for code in ["FFR403", "FFR310"] {
+    for code in ["FFR403", "FFR310", "FFR312", "FFR602"] {
         if !active.contains(code) {
             let prefix = format!("Enforced by {code}:");
             profile.retain(|line| !line.starts_with(&prefix));
@@ -463,6 +472,14 @@ fn repository_lines(context: &SkillContext) -> Result<Vec<String>, String> {
                 .replace(
                     "Configured base `max_role_depth` is 1.",
                     &format!("Configured base `max_role_depth` is {role_depth}."),
+                )
+                .replace(
+                    "configured base `max_helpers_container_buckets` is 15.",
+                    &format!("configured base `max_helpers_container_buckets` is {bucket_limit}."),
+                )
+                .replace(
+                    "configured base `max_crate_code_lines` is 75000.",
+                    &format!("configured base `max_crate_code_lines` is {code_line_limit}."),
                 )
         })
         .collect())
