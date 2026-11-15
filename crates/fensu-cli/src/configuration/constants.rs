@@ -8,6 +8,8 @@ pub(crate) const DEFAULT_THRESHOLDS: &[(&str, u32)] = &[
     ("max_file_lines", 2000),
     ("max_helpers_container_modules", 10),
     ("max_main_container_modules", 20),
+    ("max_helpers_container_buckets", 15),
+    ("max_crate_code_lines", 75000),
     ("max_role_depth", 1),
     ("max_positional_args", 1),
     ("max_arguments", 10),

@@ -11,6 +11,7 @@ use crate::test_types;
 use fensu_rust::constants;
 
 static REPO_COUNTER: atomic::AtomicUsize = atomic::AtomicUsize::new(0);
+const COUNTED_LIBRARY_ROOT: &str = "//! Order totals.\n#![forbid(unsafe_code)]\n\n/// Order total.\npub fn total() -> usize {\n    // sum\n    1 /* inline */\n}\n/* block\ncomment */\npub const NOTE: &str = \"first\nsecond\";\n#[cfg(test)]\nmod tests {\n    #[test]\n    fn checks() {}\n}\n";
 
 pub(crate) fn check_repository(root: &path::Path) -> Vec<fensu_rust::models::Violation> {
     fensu_rust::rules::main::check_repository_with_config::check_repository_with_config(
@@ -245,6 +246,37 @@ pub(crate) fn collect_violation_codes_with_ownership_roots(
     .iter()
     .map(|violation| violation.code)
     .collect()
+}
+
+/// Write a crate whose non-test sources hold six code lines.
+pub(crate) fn counted_crate_files() -> Vec<test_types::RepoFile> {
+    vec![
+        test_types::RepoFile {
+            path: "crates/example/src/lib.rs".to_owned(),
+            contents: COUNTED_LIBRARY_ROOT.to_owned(),
+        },
+        test_types::RepoFile {
+            path: "crates/example/src/orders/tests.rs".to_owned(),
+            contents: "mod topic;\n".to_owned(),
+        },
+        test_types::RepoFile {
+            path: "crates/example/src/orders/tests/topic.rs".to_owned(),
+            contents: "fn checks() {}\n".to_owned(),
+        },
+        test_types::RepoFile {
+            path: "crates/example/tests/orders.rs".to_owned(),
+            contents: "#[test]\nfn totals() {}\n".to_owned(),
+        },
+    ]
+}
+
+pub(crate) fn numbered_bucket_files(container: &str, count: usize) -> Vec<test_types::RepoFile> {
+    (0..count)
+        .map(|index| test_types::RepoFile {
+            path: format!("{container}/bucket{index:02}/support.rs"),
+            contents: "fn support() -> usize {\n    1\n}\n".to_owned(),
+        })
+        .collect()
 }
 
 pub(crate) fn numbered_module_files(

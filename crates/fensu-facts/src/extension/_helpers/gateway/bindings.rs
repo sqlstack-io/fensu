@@ -38,6 +38,11 @@ pub(crate) fn backend_version() -> String {
 }
 
 #[pyfunction]
+pub(crate) fn code_line_count(handle: &Bound<'_, ProgramHandle>) -> usize {
+    handle.get().code_line_count()
+}
+
+#[pyfunction]
 pub(crate) fn locate_byte_offset(source: &str, offset: usize) -> (u32, u32) {
     let location = locate_offset(source, offset);
     (location.line, location.column)

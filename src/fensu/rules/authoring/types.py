@@ -230,6 +230,8 @@ class Threshold(StrEnum):
     MAX_FILE_LINES = "max_file_lines"
     MAX_HELPERS_CONTAINER_MODULES = "max_helpers_container_modules"
     MAX_MAIN_CONTAINER_MODULES = "max_main_container_modules"
+    MAX_HELPERS_CONTAINER_BUCKETS = "max_helpers_container_buckets"
+    MAX_CRATE_CODE_LINES = "max_crate_code_lines"
     MAX_ROLE_DEPTH = "max_role_depth"
     MAX_POSITIONAL_ARGS = "max_positional_args"
     MAX_ARGUMENTS = "max_arguments"

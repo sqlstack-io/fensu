@@ -1,5 +1,7 @@
 //! Prepared check state and cache cleanup plans.
 
+use std::cell::RefCell;
+use std::collections::HashSet;
 use std::path::Path;
 use std::path::PathBuf;
 
@@ -11,7 +13,7 @@ use serde::{Deserialize, Serialize};
 use crate::analyzer::AnalyzerId;
 use crate::models::{Config, Fault, ProjectInput, ScopedSource, ThresholdUse};
 
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug)]
 pub(crate) struct CheckIdentityRequest<'a> {
     pub(crate) root: &'a Path,
     pub(crate) project_root: &'a Path,
@@ -139,6 +141,15 @@ pub(crate) struct EvaluationRequest<'a> {
     pub(crate) show_warnings: bool,
     pub(crate) cache_enabled: bool,
     pub(crate) collect_repository_facts: bool,
+}
+
+/// Rust analyzer threshold resolution and the overrides it applied for selected rules.
+#[derive(Debug)]
+pub(crate) struct RustThresholds<'a> {
+    pub(crate) config: &'a Config,
+    pub(crate) project_root: &'a Path,
+    pub(crate) required: HashSet<&'static str>,
+    pub(crate) uses: RefCell<Result<Vec<ThresholdUse>, String>>,
 }
 
 #[derive(Debug)]

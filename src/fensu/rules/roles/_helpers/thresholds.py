@@ -18,8 +18,10 @@ def get_role_rule_thresholds(code: RoleCode) -> tuple[Threshold, ...]:
             Threshold.MAX_MAIN_CONTAINER_MODULES,
             Threshold.MAX_ROLE_DEPTH,
         ),
+        RoleCode.HELPERS_CONTAINER_BUCKETS: (Threshold.MAX_HELPERS_CONTAINER_BUCKETS,),
         RoleCode.SHARED_DOMAIN_PREFIX: (Threshold.MIN_SHARED_DOMAIN_PREFIX_PACKAGES,),
         RoleCode.SOURCE_FILE_LINE_COUNT: (Threshold.MAX_FILE_LINES,),
+        RoleCode.TOP_LEVEL_PACKAGE_CODE_LINES: (Threshold.MAX_CRATE_CODE_LINES,),
         RoleCode.TOOLING_ENTRYPOINT_LINE_COUNT: (Threshold.MAX_SCRIPT_ENTRYPOINT_LINES,),
         RoleCode.CUSTOM_RULE_TEST_COVERAGE: (Threshold.MIN_CUSTOM_RULE_TEST_CASES,),
     }

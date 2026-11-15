@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 
 use unicode_ident::{is_xid_continue, is_xid_start};
 
-use crate::rules::models::NativeRuleContext;
+use crate::rules::models::{NativeProjectQuery, NativeRuleContext};
 
 pub(crate) const HELPERS: &str = "_helpers";
 pub(crate) const INIT_FILE: &str = "__init__.py";
@@ -15,6 +15,7 @@ pub(crate) const ROOT_SCOPE: &str = "root";
 const MAIN_ROLE: &str = "main";
 const LEGACY_HELPERS: &str = "helpers";
 const PYTHON_EXTENSION: &str = "py";
+const CODE_LINES_QUERY: &str = "code_lines";
 pub(crate) const ROLE_NAMES: &[&str] = &[
     MAIN_ROLE,
     HELPERS,
@@ -255,7 +256,15 @@ pub(crate) fn directory_entries(path: &Path) -> Vec<PathBuf> {
         .collect()
 }
 
+/// The configured root that owns the current file, falling back to the scope's first root.
 pub(crate) fn scope_root(context: &NativeRuleContext) -> PathBuf {
+    if !context.relative_parts.is_empty() {
+        let mut root = repository_path(context);
+        for _ in &context.relative_parts {
+            root.pop();
+        }
+        return root;
+    }
     let relative = context
         .scope_roots
         .iter()
@@ -263,6 +272,19 @@ pub(crate) fn scope_root(context: &NativeRuleContext) -> PathBuf {
         .cloned()
         .unwrap_or_default();
     Path::new(&context.repo_root).join(relative)
+}
+
+/// Observation of one Python file's code-line count, keyed by its repository-relative path.
+pub(crate) fn code_lines_query(context: &NativeRuleContext, path: &Path) -> NativeProjectQuery {
+    NativeProjectQuery {
+        kind: CODE_LINES_QUERY.to_owned(),
+        path: path
+            .strip_prefix(&context.repo_root)
+            .unwrap_or(path)
+            .to_string_lossy()
+            .replace('\\', "/"),
+        argument: String::new(),
+    }
 }
 
 pub(crate) fn repository_path(context: &NativeRuleContext) -> PathBuf {

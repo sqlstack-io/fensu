@@ -62,6 +62,7 @@ pub const TOP_LEVEL_DOMAIN_SHAPE_CODE: &str = "FFR306";
 pub const SHARED_DOMAIN_PREFIX_CODE: &str = "FFR308";
 pub const LEAF_MAIN_BOUNDARY_CODE: &str = "FFR309";
 pub const PUBLIC_FACADE_IMPORT_DIRECTION_CODE: &str = "FFR310";
+pub const HELPERS_CONTAINER_BUCKETS_CODE: &str = "FFR312";
 pub const ENTRY_MODULE_SHAPE_CODE: &str = "FFR401";
 pub const INIT_MODULE_EMPTY_CODE: &str = "FFR402";
 pub const NO_REEXPORT_SHIM_CODE: &str = "FFR403";
@@ -73,6 +74,7 @@ pub const HELPERS_PACKAGE_SHAPE_CODE: &str = "FFR502";
 pub const PRIVATE_DEFINITION_ORDERING_CODE: &str = "FFR503";
 pub const CLASSES_RUNTIME_REEXPORT_CODE: &str = "FFR504";
 pub const SOURCE_FILE_LINE_COUNT_CODE: &str = "FFR601";
+pub const PACKAGE_CODE_LINES_CODE: &str = "FFR602";
 pub const TOOLING_ENTRYPOINT_SHAPE_CODE: &str = "FFR701";
 pub const TOOLING_ENTRYPOINT_DELEGATION_CODE: &str = "FFR702";
 pub const TOOLING_ENTRYPOINT_LINE_COUNT_CODE: &str = "FFR703";
@@ -227,6 +229,7 @@ pub const NATIVE_RULE_FACT_FAMILIES: &[(&str, &[&str])] = &[
     (SHARED_DOMAIN_PREFIX_CODE, &[]),
     (LEAF_MAIN_BOUNDARY_CODE, &[]),
     (PUBLIC_FACADE_IMPORT_DIRECTION_CODE, &["references"]),
+    (HELPERS_CONTAINER_BUCKETS_CODE, &[]),
     (ENTRY_MODULE_SHAPE_CODE, &["module_declarations"]),
     (INIT_MODULE_EMPTY_CODE, &["module_declarations"]),
     (NO_REEXPORT_SHIM_CODE, &["module_declarations"]),
@@ -238,6 +241,7 @@ pub const NATIVE_RULE_FACT_FAMILIES: &[(&str, &[&str])] = &[
     (PRIVATE_DEFINITION_ORDERING_CODE, &["module_declarations"]),
     (CLASSES_RUNTIME_REEXPORT_CODE, &["module_declarations"]),
     (SOURCE_FILE_LINE_COUNT_CODE, &[]),
+    (PACKAGE_CODE_LINES_CODE, &[]),
     (TOOLING_ENTRYPOINT_SHAPE_CODE, &["module_declarations"]),
     (TOOLING_ENTRYPOINT_DELEGATION_CODE, &["module_declarations"]),
     (TOOLING_ENTRYPOINT_LINE_COUNT_CODE, &[]),

@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from collections.abc import Mapping
+from dataclasses import dataclass, field
 
 
 @dataclass(frozen=True)
@@ -350,3 +351,26 @@ class InvalidCustomRuleOptionProcessTestCase:
     expected_exit_code: int
     expected_error_fragment: str
     expected_evaluation_marker: bool
+
+
+@dataclass(frozen=True)
+class SizeLimitCheckTestCase:
+    """Container or package size project and its expected cold and warm check output."""
+
+    description: str
+    config: str
+    files: Mapping[str, str]
+    expected_exit_code: int
+    expected_output_fragment: str
+    expected_absent_fragment: str
+    directories: tuple[str, ...] = field(default_factory=tuple)
+
+
+@dataclass(frozen=True)
+class SizeLimitInvalidationTestCase:
+    """Package code-line edit outside the anchor and its expected warm result."""
+
+    description: str
+    appended_source: str
+    expected_cold_fragment: str
+    expected_warm_fragment: str

@@ -88,6 +88,33 @@ max_file_lines = 1500
 
 Budgets must be positive integers. Unknown option names are rejected.
 
+## Size limits
+
+`FPRSR312` and `FPRSR602` read the shared thresholds rather than rule options, so
+they accept a target-wide value and path overrides:
+
+```toml
+[targets.rust.thresholds]
+max_helpers_container_buckets = 12
+max_crate_code_lines = 60000
+
+[[targets.rust.threshold_overrides]]
+paths = ["crates/orders/Cargo.toml"]
+thresholds = { max_crate_code_lines = 82000 }
+reason = "The orders crate is being split by area."
+```
+
+| Rule | Threshold | Default | Reported at |
+| --- | --- | --- | --- |
+| `FPRSR312` | `max_helpers_container_buckets` | `15` | The `_helpers` directory. |
+| `FPRSR602` | `max_crate_code_lines` | `75000` | The crate's `Cargo.toml`. |
+
+A bucket is a subdirectory of `_helpers/` that holds at least one non-test Rust
+module. Crate code lines are the lines of `src/` sources that hold a token other
+than a comment; doc comments, `tests/` targets, inline test trees, and
+top-level `#[cfg(test)]` items do not count. See
+[package and crate size](https://fensu.io/docs/concepts/architecture-model/#package-and-crate-size).
+
 ## Comments and tuple types
 
 `FPRSH002` rejects every non-doc comment in library sources, including trailing `//`

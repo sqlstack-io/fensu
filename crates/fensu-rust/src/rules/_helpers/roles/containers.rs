@@ -1,12 +1,13 @@
 //! Container rules: bounded role containers, role placement, entry shape.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use syn::spanned::Spanned;
 
 use crate::constants;
 use crate::models;
-use crate::types::FileKind;
+use crate::rules::_helpers::sources::scanning;
+use crate::types::{FileKind, ThresholdLookup};
 
 pub(crate) struct FileCheckRequest<'a> {
     pub(crate) file: &'a models::SourceFile,
@@ -19,14 +20,26 @@ pub(crate) struct FileCheckRequest<'a> {
 pub(crate) fn check_containers(
     files: &[models::SourceFile],
     thresholds: &models::ThresholdConfig,
+    lookup: &dyn ThresholdLookup,
 ) -> Vec<models::Violation> {
     let mut violations: Vec<models::Violation> = Vec::new();
     let mut direct_modules: BTreeMap<String, usize> = BTreeMap::new();
     let mut bucket_modules: BTreeMap<String, usize> = BTreeMap::new();
+    let mut helper_buckets: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
     for file in files {
         let Some((container, remainder)) = container_split(file) else {
             continue;
         };
+        if let Some((bucket, _)) = remainder.split_once('/') {
+            if container.ends_with(constants::HELPERS_DIRECTORY)
+                && !scanning::is_inline_test_file(file)
+            {
+                helper_buckets
+                    .entry(container.clone())
+                    .or_default()
+                    .insert(bucket.to_owned());
+            }
+        }
         let depth = remainder.split('/').count();
         if depth > constants::MAX_CONTAINER_COMPONENT_DEPTH {
             violations.push(container_violation(
@@ -54,6 +67,14 @@ pub(crate) fn check_containers(
             direct_modules.get(&container).copied().unwrap_or(0),
             bucket_modules.get(&container).copied().unwrap_or(0),
             thresholds,
+        ));
+    }
+    for (container, buckets) in helper_buckets {
+        violations.extend(bucket_budget_violation(
+            &container,
+            buckets.len(),
+            thresholds,
+            lookup,
         ));
     }
     violations.extend(check_prefix_families(files));
@@ -236,6 +257,29 @@ fn container_budget_violations(
         ));
     }
     violations
+}
+
+fn bucket_budget_violation(
+    container: &str,
+    buckets: usize,
+    thresholds: &models::ThresholdConfig,
+    lookup: &dyn ThresholdLookup,
+) -> Option<models::Violation> {
+    let limit = lookup
+        .threshold(constants::HELPERS_CONTAINER_BUCKETS_THRESHOLD, container)
+        .unwrap_or(thresholds.max_helper_container_buckets);
+    (buckets > limit).then(|| {
+        models::Violation::new(models::ViolationRequest {
+            code: constants::HELPERS_CONTAINER_BUCKETS_CODE,
+            path: std::path::Path::new(container),
+            line: None,
+            message: format!(
+                "{}/ holds {buckets} buckets (limit {limit}); split the owning module by area or move cohesive groups into their own module or crate.",
+                constants::HELPERS_DIRECTORY
+            ),
+            remediation: "split the owning module by area or move cohesive groups into their own module or crate; only subdirectories holding non-test Rust modules count as buckets",
+        })
+    })
 }
 
 fn container_violation(container: &str, detail: &str) -> models::Violation {

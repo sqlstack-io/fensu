@@ -68,9 +68,9 @@ from tests.unit.src.fensu.rules.catalog.main.helpers import (
     [
         NativeRulePackCatalogueTestCase(
             description="Dagster pack is complete and standalone",
-            expected_catalogue_count=129,
-            expected_active_count=125,
-            expected_alias_count=106,
+            expected_catalogue_count=131,
+            expected_active_count=127,
+            expected_alias_count=108,
             expected_native_count=23,
         )
     ],
@@ -157,7 +157,7 @@ def test_given_native_web_packs_when_building_catalogue_then_each_pack_is_standa
     [
         NativeRustPackCatalogueTestCase(
             description="Rust pack exposes every structure-engine identity",
-            expected_rule_count=121,
+            expected_rule_count=123,
         )
     ],
     ids=lambda case: case.description,

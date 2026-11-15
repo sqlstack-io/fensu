@@ -3,14 +3,15 @@
 use std::path::Path;
 
 use crate::rules::_helpers::role_project_layout_paths::{
-    direct_modules, directory_entries, domain_dir, domain_roots, file_name, grouping_roots,
-    leaf_dir, main_entries, mixed_domain, named_subdomains, ownership_roots, prefix_candidates,
-    prefix_groups, python_anchor, repository_path, role_name, role_package, HELPERS, INIT_FILE,
-    PYTHON_CACHE,
+    code_lines_query, direct_modules, directory_entries, domain_dir, domain_roots, file_name,
+    grouping_roots, leaf_dir, main_entries, mixed_domain, named_subdomains, ownership_roots,
+    prefix_candidates, prefix_groups, python_anchor, recursive_python, repository_path, role_name,
+    role_package, scope_root, HELPERS, INIT_FILE, PYTHON_CACHE, ROOT_SCOPE,
 };
 use crate::rules::constants::{
-    HELPERS_PACKAGE_LAYOUT_CODE, LEAF_MAIN_BOUNDARY_CODE, MAIN_PACKAGE_LAYOUT_CODE,
-    SHARED_DOMAIN_PREFIX_CODE, TOP_LEVEL_DOMAIN_SHAPE_CODE,
+    HELPERS_CONTAINER_BUCKETS_CODE, HELPERS_PACKAGE_LAYOUT_CODE, LEAF_MAIN_BOUNDARY_CODE,
+    MAIN_PACKAGE_LAYOUT_CODE, PACKAGE_CODE_LINES_CODE, SHARED_DOMAIN_PREFIX_CODE,
+    TOP_LEVEL_DOMAIN_SHAPE_CODE,
 };
 use crate::rules::models::{NativeProjectQuery, NativeRuleContext};
 
@@ -58,6 +59,8 @@ pub(crate) fn project_layout_queries(
                 }
             }
         }
+        HELPERS_CONTAINER_BUCKETS_CODE => queries = bucket_queries(context),
+        PACKAGE_CODE_LINES_CODE => queries = code_line_queries(context),
         TOP_LEVEL_DOMAIN_SHAPE_CODE => {
             queries = append_grouping_discovery_queries(queries, context);
             for group in grouping_roots(context) {
@@ -127,6 +130,40 @@ pub(crate) fn project_layout_queries(
         _ => return None,
     }
     Some(queries)
+}
+
+fn bucket_queries(context: &NativeRuleContext) -> Vec<NativeProjectQuery> {
+    let mut queries: Vec<NativeProjectQuery> = Vec::new();
+    let Some(container) = role_package(context, HELPERS) else {
+        return queries;
+    };
+    queries.push(query("python_anchor", &container, ""));
+    if python_anchor(&container).as_deref() != Some(repository_path(context).as_path()) {
+        return queries;
+    }
+    queries.push(query("directory_entries", &container, ""));
+    for entry in directory_entries(&container) {
+        if file_name(&entry) == PYTHON_CACHE {
+            continue;
+        }
+        queries.push(query("is_dir", &entry, ""));
+        if entry.is_dir() {
+            queries.push(glob_query(&entry, true));
+        }
+    }
+    queries
+}
+
+fn code_line_queries(context: &NativeRuleContext) -> Vec<NativeProjectQuery> {
+    if context.scope != ROOT_SCOPE {
+        return Vec::new();
+    }
+    let root = scope_root(context);
+    let mut queries = vec![glob_query(&root, true)];
+    for path in recursive_python(&root) {
+        queries.push(code_lines_query(context, &path));
+    }
+    queries
 }
 
 fn append_grouping_discovery_queries(

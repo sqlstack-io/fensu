@@ -25,6 +25,26 @@ pub struct RepositoryAnalysis {
     pub facts: crate::facts::models::RustWorkspaceFacts,
 }
 
+/// Inputs for analyzing one Cargo workspace under explicit ownership roots.
+#[derive(Clone, Copy, Debug)]
+pub struct RepositoryAnalysisRequest<'a> {
+    pub repository_root: &'a path::Path,
+    pub options: Option<&'a toml::map::Map<String, toml::Value>>,
+    pub tooling: &'a [String],
+    pub ownership_roots: &'a [String],
+    pub thresholds: &'a dyn crate::types::ThresholdLookup,
+}
+
+/// Threshold lookup that keeps every value from the policy's threshold configuration.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct PolicyThresholds;
+
+impl crate::types::ThresholdLookup for PolicyThresholds {
+    fn threshold(&self, _name: &str, _path: &str) -> Option<usize> {
+        None
+    }
+}
+
 /// Resolved Rust rule settings. Cargo supplies workspace identities and targets.
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct RustPolicy {
@@ -72,6 +92,8 @@ pub struct ThresholdConfig {
     pub max_locals_entry: usize,
     pub max_helper_container_modules: usize,
     pub max_main_container_modules: usize,
+    pub max_helper_container_buckets: usize,
+    pub max_crate_code_lines: usize,
 }
 
 impl Default for ThresholdConfig {
@@ -86,6 +108,8 @@ impl Default for ThresholdConfig {
             max_locals_entry: constants::MAX_LOCALS_ENTRY,
             max_helper_container_modules: constants::MAX_HELPER_CONTAINER_MODULES,
             max_main_container_modules: constants::MAX_MAIN_CONTAINER_MODULES,
+            max_helper_container_buckets: constants::MAX_HELPER_CONTAINER_BUCKETS,
+            max_crate_code_lines: constants::MAX_CRATE_CODE_LINES,
         }
     }
 }

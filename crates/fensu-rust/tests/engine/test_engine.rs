@@ -1,6 +1,7 @@
 use std::fs;
 
 use fensu_rust::engine::main::analyze_repository::analyze_repository;
+use fensu_rust::models::PolicyThresholds;
 use fensu_rust::{CACHE_CONTRACT_VERSION, FACT_SCHEMA_VERSION, PARSER_CONTRACT_VERSION};
 
 use crate::test_types::{EngineTestCase, RustFactsEngineTestCase};
@@ -9,7 +10,7 @@ use crate::test_types::{EngineTestCase, RustFactsEngineTestCase};
 fn given_minimal_workspace_when_analyzing_then_engine_returns_owned_diagnostics() {
     let test_cases = [EngineTestCase {
         description: "minimal workspace returns owned diagnostics and stable contracts",
-        expected_cache_contract: "rust-rules-v7",
+        expected_cache_contract: "rust-rules-v8",
         expected_diagnostics: true,
         expected_lock_created: false,
         expected_parser_contract: "rust-syn-workspace-v1",
@@ -28,7 +29,8 @@ fn given_minimal_workspace_when_analyzing_then_engine_returns_owned_diagnostics(
         )
         .expect("source");
 
-        let analysis = analyze_repository(temporary.path(), None, &[]).expect("analysis succeeds");
+        let analysis = analyze_repository(temporary.path(), None, &[], &PolicyThresholds)
+            .expect("analysis succeeds");
         let diagnostics_are_owned = analysis
             .diagnostics
             .iter()
@@ -104,7 +106,8 @@ fn given_rust_declarations_and_use_when_analyzing_then_owned_facts_are_versioned
         )
         .expect("binary child source");
 
-        let analysis = analyze_repository(temporary.path(), None, &[]).expect("analysis succeeds");
+        let analysis = analyze_repository(temporary.path(), None, &[], &PolicyThresholds)
+            .expect("analysis succeeds");
         let library = analysis
             .facts
             .files

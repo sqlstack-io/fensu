@@ -9,19 +9,22 @@ use crate::rules::_helpers::imports::embedded_files;
 use crate::rules::_helpers::imports::{layers, visibility};
 use crate::rules::_helpers::repository::configured_paths;
 use crate::rules::_helpers::repository::crate_contents;
+use crate::rules::_helpers::repository::crate_size;
 use crate::rules::_helpers::roles::{containers, domains, ownership, surfaces, tooling};
 use crate::rules::_helpers::sources::scanning;
 use crate::rules::_helpers::test_conventions::test_mirroring;
+use crate::types::ThresholdLookup;
 
 pub(crate) fn check_scan(
     repo_root: &path::Path,
     workspace: models::WorkspaceScan,
     config: &models::RustPolicy,
+    lookup: &dyn ThresholdLookup,
 ) -> Vec<models::Violation> {
     let mut violations = workspace.violations;
     violations.extend(check(repo_root, &workspace.crates, config));
     for workspace_crate in workspace.crates {
-        violations.extend(check_crate(repo_root, &workspace_crate, config));
+        violations.extend(check_crate(repo_root, &workspace_crate, config, lookup));
     }
     violations
 }
@@ -46,6 +49,7 @@ pub(crate) fn check_crate(
     repo_root: &path::Path,
     workspace_crate: &models::WorkspaceCrate,
     config: &models::RustPolicy,
+    lookup: &dyn ThresholdLookup,
 ) -> Vec<models::Violation> {
     let crate_dir = &workspace_crate.directory;
     let is_tooling_crate = config
@@ -55,11 +59,22 @@ pub(crate) fn check_crate(
         .any(|root| crate_dir.starts_with(repo_root.join(root)));
     let (mut violations, structural_files) =
         check_crate_files(repo_root, workspace_crate, config, is_tooling_crate);
+    violations.extend(containers::check_containers(
+        &structural_files,
+        &config.repository.thresholds,
+        lookup,
+    ));
     violations.extend(check_aggregate_structure(
         workspace_crate,
         &structural_files,
         config,
         is_tooling_crate,
+    ));
+    violations.extend(crate_size::check(
+        repo_root,
+        workspace_crate,
+        &config.repository.thresholds,
+        lookup,
     ));
     violations.extend(check_test_conventions(repo_root, workspace_crate));
     violations.extend(layers::check_manifest(repo_root, workspace_crate, config));
@@ -149,13 +164,11 @@ fn check_aggregate_structure(
     config: &models::RustPolicy,
     is_tooling_crate: bool,
 ) -> Vec<models::Violation> {
-    let mut violations =
-        containers::check_containers(structural_files, &config.repository.thresholds);
-    violations.extend(domains::check_domains(
+    let mut violations = domains::check_domains(
         structural_files,
         &workspace_crate.targets,
         &config.ownership_roots,
-    ));
+    );
     violations.extend(ownership::check(
         &workspace_crate.directory,
         workspace_crate.package_name.as_deref(),

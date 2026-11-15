@@ -5,7 +5,7 @@ from __future__ import annotations
 from fensu.config.constants import RUST_RULE_PACK
 from fensu.config.types import AnalyzerId
 from fensu.rules.authoring.models import RuleConstraint, RuleOption, RuleSpec
-from fensu.rules.authoring.types import ExecutionOwner, Family, RuleKind
+from fensu.rules.authoring.types import ExecutionOwner, Family, RuleKind, Threshold
 
 _IMPLEMENTATION_CODES: tuple[str, ...] = (
     "RSA103",
@@ -68,6 +68,7 @@ _IMPLEMENTATION_CODES: tuple[str, ...] = (
     "RSR309",
     "RSR310",
     "RSR311",
+    "RSR312",
     "RSR401",
     "RSR402",
     "RSR403",
@@ -77,6 +78,7 @@ _IMPLEMENTATION_CODES: tuple[str, ...] = (
     "RSR502",
     "RSR503",
     "RSR601",
+    "RSR602",
     "RSR701",
     "RSR702",
     "RSR703",
@@ -184,6 +186,8 @@ _OPTIONS: dict[str, tuple[RuleOption[object], ...]] = {
 
 _MESSAGES: dict[str, str] = {
     "RSR311": "Cargo package directories contain only allowed entries",
+    "RSR312": "_helpers/ containers hold a bounded number of buckets",
+    "RSR602": "workspace crates stay below the configured code-line limit",
     "RSL106": "embedded file paths are literal and remain inside the including source domain",
     "RSH002": "non-doc comments are not allowed",
     "RSS012": "tuple types keep a bounded number of positional elements",
@@ -196,6 +200,18 @@ _REMEDIATIONS: dict[str, str] = {
     "RSR311": (
         "Move data into its owning source domain or configure allowed_entries "
         "for justified package entries."
+    ),
+    "RSR312": (
+        "Split the owning module by area or move cohesive groups into their own module or "
+        "crate. A bucket is a subdirectory of _helpers/ that holds at least one non-test Rust "
+        "module; empty and asset-only directories do not count. Direct modules are limited "
+        "separately by FPRSR301."
+    ),
+    "RSR602": (
+        "Split the crate into crates by area. Code lines are the lines of the crate's non-test "
+        "Rust sources that hold a token other than a comment; blank lines, comments, and doc "
+        "comments do not count, and tests/ targets, inline test trees, and top-level "
+        "#[cfg(test)] items are excluded."
     ),
     "RSL106": (
         "Embed an existing file using a literal path within the including source domain; "
@@ -215,6 +231,11 @@ _REMEDIATIONS: dict[str, str] = {
         "Install the Rust toolchain, for example as rust-toolchain.toml pins it, and put cargo "
         "on PATH or set CARGO. fensu check exits 2 until cargo runs."
     ),
+}
+
+_THRESHOLDS: dict[str, tuple[Threshold, ...]] = {
+    "RSR312": (Threshold.MAX_HELPERS_CONTAINER_BUCKETS,),
+    "RSR602": (Threshold.MAX_CRATE_CODE_LINES,),
 }
 
 _CONSTRAINTS: dict[str, tuple[RuleConstraint, ...]] = {
@@ -255,6 +276,7 @@ def rust_rules() -> tuple[RuleSpec, ...]:
             implementation_code=implementation,
             options=_OPTIONS.get(implementation, ()),
             constraints=_CONSTRAINTS.get(implementation, ()),
+            thresholds=_THRESHOLDS.get(implementation, ()),
             configuration_inputs=("ownership_roots",),
         )
         for implementation in _IMPLEMENTATION_CODES

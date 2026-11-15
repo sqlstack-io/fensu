@@ -113,6 +113,7 @@ _PARITY_NATIVE_CODES: frozenset[str] = frozenset(
         "FFR308",
         "FFR309",
         "FFR310",
+        "FFR312",
         "FFR401",
         "FFR402",
         "FFR403",
@@ -124,6 +125,7 @@ _PARITY_NATIVE_CODES: frozenset[str] = frozenset(
         "FFR503",
         "FFR504",
         "FFR601",
+        "FFR602",
         "FFR701",
         "FFR702",
         "FFR703",
@@ -1411,6 +1413,99 @@ _PYTHON_OWNED_SFR_CODES: frozenset[str] = frozenset()
             source="def run() -> None:\n    pass\n",
             expected_fault_count=1,
             path="src/example/domain/main/run.py",
+        ),
+        NativeCustomRuleParityTestCase(
+            description="FFR312 accepts a helpers container at its bucket limit",
+            native_code="FFR312",
+            source="",
+            expected_fault_count=0,
+            path="src/example/orders/_helpers/__init__.py",
+            config={"thresholds": {"max_helpers_container_buckets": 2}},
+            files=(
+                RuleFile(path="src/example/orders/_helpers/pricing/rates.py", source=""),
+                RuleFile(path="src/example/orders/_helpers/shipping/zones.py", source=""),
+            ),
+        ),
+        NativeCustomRuleParityTestCase(
+            description="FFR312 rejects a helpers container over its bucket limit",
+            native_code="FFR312",
+            source="",
+            expected_fault_count=1,
+            path="src/example/orders/_helpers/__init__.py",
+            config={"thresholds": {"max_helpers_container_buckets": 2}},
+            files=(
+                RuleFile(path="src/example/orders/_helpers/pricing/rates.py", source=""),
+                RuleFile(path="src/example/orders/_helpers/shipping/zones.py", source=""),
+                RuleFile(path="src/example/orders/_helpers/tax/rules/regions.py", source=""),
+            ),
+        ),
+        NativeCustomRuleParityTestCase(
+            description="FFR312 anchors a bucket-only helpers container at its first module",
+            native_code="FFR312",
+            source="",
+            expected_fault_count=1,
+            path="src/example/orders/_helpers/pricing/rates.py",
+            config={"thresholds": {"max_helpers_container_buckets": 2}},
+            files=(
+                RuleFile(path="src/example/orders/_helpers/shipping/zones.py", source=""),
+                RuleFile(path="src/example/orders/_helpers/tax/regions.py", source=""),
+            ),
+        ),
+        NativeCustomRuleParityTestCase(
+            description="FFR312 ignores modules that are not the container anchor",
+            native_code="FFR312",
+            source="",
+            expected_fault_count=0,
+            path="src/example/orders/_helpers/shipping/zones.py",
+            config={"thresholds": {"max_helpers_container_buckets": 1}},
+            files=(
+                RuleFile(path="src/example/orders/_helpers/__init__.py", source=""),
+                RuleFile(path="src/example/orders/_helpers/pricing/rates.py", source=""),
+            ),
+        ),
+        NativeCustomRuleParityTestCase(
+            description="FFR602 accepts a package at its code-line limit",
+            native_code="FFR602",
+            source='"""Inventory package."""\n',
+            expected_fault_count=0,
+            path="src/example/__init__.py",
+            config={"thresholds": {"max_crate_code_lines": 4}},
+            files=(
+                RuleFile(
+                    path="src/example/inventory/models.py",
+                    source=(
+                        "# Stock levels.\n\ncount: int = 1\n\n\n"
+                        "limit: int = 2  # upper bound\nlabel: str = 'stock'\n"
+                    ),
+                ),
+            ),
+        ),
+        NativeCustomRuleParityTestCase(
+            description="FFR602 rejects a package over its code-line limit",
+            native_code="FFR602",
+            source='"""Inventory package."""\n',
+            expected_fault_count=1,
+            path="src/example/__init__.py",
+            config={"thresholds": {"max_crate_code_lines": 4}},
+            files=(
+                RuleFile(
+                    path="src/example/inventory/models.py",
+                    source="count: int = 1\nlimit: int = 2\nlabel: str = 'stock'\n",
+                ),
+                RuleFile(
+                    path="src/example/customers/models.py",
+                    source='text: str = """first\n\nthird"""\n',
+                ),
+            ),
+        ),
+        NativeCustomRuleParityTestCase(
+            description="FFR602 does not count tooling roots",
+            native_code="FFR602",
+            source="def main() -> int:\n    return 0\n",
+            expected_fault_count=0,
+            path="scripts/report.py",
+            scope="tooling",
+            config={"thresholds": {"max_crate_code_lines": 1}},
         ),
         NativeCustomRuleParityTestCase(
             description="FFR301 matches public helpers package observations",

@@ -16,7 +16,8 @@ pub fn check_repository_with_config(
         .canonicalize()
         .map_err(|error| format!("could not canonicalize repository root: {error}"))?;
     let workspace = scanning::scan_workspace(&repo_root);
-    let mut violations = project_checks::check_scan(&repo_root, workspace, config);
+    let mut violations =
+        project_checks::check_scan(&repo_root, workspace, config, &models::PolicyThresholds);
     violations.sort_by(|left, right| left.sort_key().cmp(&right.sort_key()));
     Ok(violations)
 }

@@ -483,8 +483,11 @@ min_custom_rule_test_cases = 2
 ```
 
 This includes the container-layout limits `max_helpers_container_modules`,
-`max_main_container_modules`, and `max_role_depth` that govern
-[flat-or-grouped containers](/concepts/architecture-model#containers-flat-or-grouped).
+`max_main_container_modules`, `max_helpers_container_buckets`, and
+`max_role_depth` that govern
+[flat-or-grouped containers](/concepts/architecture-model#containers-flat-or-grouped),
+and `max_crate_code_lines`, which bounds
+[package and crate size](/concepts/architecture-model#package-and-crate-size).
 The two `min_` thresholds use `0` to disable their rule.
 
 ### Per-role overrides
@@ -524,6 +527,12 @@ reason = "Generated report tables exceed the default line budget."
 - `thresholds` is a non-empty inline table of known threshold keys with
   non-negative integer values.
 - `reason` is required and must be non-empty.
+
+Size limits report one fault per container or package, so match the reported
+path: `_helpers/__init__.py` or the `_helpers` directory for
+`max_helpers_container_buckets`, and the package's `__init__.py` or the crate's
+`Cargo.toml` for `max_crate_code_lines`. Rust targets accept these two thresholds
+in `[targets.<name>.thresholds]` and `[[targets.<name>.threshold_overrides]]`.
 
 When several entries match a path, the **most specific pattern wins**; among
 equally specific patterns, the later entry wins. A matching path override beats

@@ -1,5 +1,7 @@
 //! Lexical comment discovery without interpreting literal contents as source.
 
+use std::collections::BTreeSet;
+
 pub(crate) struct Comment {
     pub(crate) line: usize,
     pub(crate) end_line: usize,
@@ -40,6 +42,25 @@ pub(crate) fn scan(source: &str) -> Vec<Comment> {
         offset += length;
     }
     comments
+}
+
+/// Return the 1-based lines holding a non-comment token; a literal counts every line it spans.
+pub(crate) fn code_lines(source: &str) -> BTreeSet<usize> {
+    let mut lines: BTreeSet<usize> = BTreeSet::new();
+    let mut offset = 0;
+    let mut line = 1;
+    while offset < source.len() {
+        let remaining = &source[offset..];
+        let length = token_length(remaining);
+        let token = &remaining[..length];
+        let end_line = line + token.bytes().filter(|byte| *byte == b'\n').count();
+        if !token.starts_with("//") && !token.starts_with("/*") && !token.trim().is_empty() {
+            lines.extend(line..=end_line);
+        }
+        line = end_line;
+        offset += length;
+    }
+    lines
 }
 
 fn token_length(source: &str) -> usize {

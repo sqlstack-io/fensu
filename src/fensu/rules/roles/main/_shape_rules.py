@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from fensu.rules.authoring.models import RuleSpec
-from fensu.rules.authoring.types import Family
+from fensu.rules.authoring.types import ExecutionOwner, Family
 from fensu.rules.roles._helpers.metadata import role_rule_details
 from fensu.rules.roles._helpers.thresholds import get_role_rule_thresholds
 from fensu.rules.roles.types import RoleCode
@@ -33,10 +33,20 @@ def shape_rules() -> tuple[RuleSpec, ...]:
             code=RoleCode.SOURCE_FILE_LINE_COUNT,
             slug="source-file-line-count",
         ),
+        _rule(
+            code=RoleCode.TOP_LEVEL_PACKAGE_CODE_LINES,
+            slug="package-code-lines",
+            execution_owner=ExecutionOwner.SCOPE,
+        ),
     )
 
 
-def _rule(*, code: RoleCode, slug: str) -> RuleSpec:
+def _rule(
+    *,
+    code: RoleCode,
+    slug: str,
+    execution_owner: ExecutionOwner = ExecutionOwner.FILE,
+) -> RuleSpec:
     message, remediation = role_rule_details(code)
     return RuleSpec(
         code=code,
@@ -44,5 +54,6 @@ def _rule(*, code: RoleCode, slug: str) -> RuleSpec:
         slug=slug,
         message=message,
         remediation=remediation,
+        execution_owner=execution_owner,
         thresholds=get_role_rule_thresholds(code),
     )
