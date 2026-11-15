@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.31.0](https://github.com/sqlstack-io/fensu/compare/v0.30.0...v0.31.0) (2026-11-15)
+
+
+### Features
+
+* limit _helpers/ bucket counts and package and crate code lines ([#135](https://github.com/sqlstack-io/fensu/issues/135)) ([6152dc9](https://github.com/sqlstack-io/fensu/commit/6152dc91b46622e6fb78b1cd82e90645beae9190))
+
 ## [0.30.0](https://github.com/sqlstack-io/fensu/compare/v0.29.3...v0.30.0) (2026-11-14)
 
 
