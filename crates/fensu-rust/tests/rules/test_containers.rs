@@ -38,6 +38,27 @@ fn given_container_fixtures_when_checking_then_reports_expected_codes() {
             expected_violation_codes: vec!["RSR301"],
         },
         test_types::CheckRepoTestCase {
+            description: "helpers container at the bucket budget is accepted",
+            repo_files: helpers::numbered_bucket_files("crates/example/src/reading/_helpers", 15),
+            expected_violation_codes: vec![],
+        },
+        test_types::CheckRepoTestCase {
+            description: "helpers container over the bucket budget is reported",
+            repo_files: helpers::numbered_bucket_files("crates/example/src/reading/_helpers", 16),
+            expected_violation_codes: vec!["RSR312"],
+        },
+        test_types::CheckRepoTestCase {
+            description: "asset-only directories do not count as helper buckets",
+            repo_files: helpers::numbered_bucket_files("crates/example/src/reading/_helpers", 15)
+                .into_iter()
+                .chain([test_types::RepoFile {
+                    path: "crates/example/src/reading/_helpers/assets/rates.json".to_owned(),
+                    contents: "{}\n".to_owned(),
+                }])
+                .collect(),
+            expected_violation_codes: vec![],
+        },
+        test_types::CheckRepoTestCase {
             description: "main container over the entry budget is reported",
             repo_files: helpers::numbered_module_files(
                 "crates/example/src/reading/main",
@@ -160,6 +181,46 @@ fn given_helper_prefix_families_when_checking_then_reports_ungrouped_families() 
         helpers::remove_temp_repo(&repo_root);
         assert_eq!(
             actual_codes, test_case.expected_violation_codes,
+            "case failed: {}",
+            test_case.description
+        );
+    }
+}
+
+#[test]
+fn given_helper_buckets_over_budget_when_checking_then_reports_count_at_container() {
+    let test_cases = [test_types::ContainerMessageTestCase {
+        description: "the bucket fault names the container, the count, and the limit",
+        repo_files: helpers::numbered_bucket_files("crates/example/src/reading/_helpers", 16),
+        expected_path: "crates/example/src/reading/_helpers",
+        expected_message: "_helpers/ holds 16 buckets (limit 15); split the owning module by area or move cohesive groups into their own module or crate.",
+    }];
+    for test_case in &test_cases {
+        let repo_root = helpers::write_temp_repo(&test_types::CheckRepoTestCase {
+            description: test_case.description,
+            repo_files: test_case.repo_files.clone(),
+            expected_violation_codes: Vec::new(),
+        });
+
+        let violations = helpers::check_repository(&repo_root);
+
+        helpers::remove_temp_repo(&repo_root);
+        let reported = violations
+            .iter()
+            .filter(|violation| violation.code == "RSR312")
+            .map(|violation| {
+                (
+                    violation.path.to_string_lossy().into_owned(),
+                    violation.message.clone(),
+                )
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            reported,
+            vec![(
+                test_case.expected_path.to_owned(),
+                test_case.expected_message.to_owned()
+            )],
             "case failed: {}",
             test_case.description
         );

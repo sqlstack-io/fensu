@@ -15,9 +15,24 @@ pub(crate) struct TupleTestCase {
     pub(crate) expected_lines: &'static [usize],
 }
 
+#[derive(Clone)]
 pub(crate) struct RepoFile {
     pub(crate) path: String,
     pub(crate) contents: String,
+}
+
+pub(crate) struct ContainerMessageTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) repo_files: Vec<RepoFile>,
+    pub(crate) expected_path: &'static str,
+    pub(crate) expected_message: &'static str,
+}
+
+pub(crate) struct CrateSizeTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) repo_files: Vec<RepoFile>,
+    pub(crate) max_crate_code_lines: usize,
+    pub(crate) expected_messages: Vec<&'static str>,
 }
 
 pub(crate) struct CheckRepoTestCase {

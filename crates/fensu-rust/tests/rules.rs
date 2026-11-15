@@ -4,6 +4,8 @@ mod comments;
 mod configuration;
 #[path = "rules/test_containers.rs"]
 mod containers;
+#[path = "rules/test_crate_size.rs"]
+mod crate_size;
 #[path = "rules/test_domains.rs"]
 mod domains;
 #[path = "rules/test_file_placement.rs"]

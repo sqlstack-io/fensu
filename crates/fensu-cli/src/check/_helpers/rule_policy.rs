@@ -12,6 +12,8 @@ use crate::catalogue::main::rule_metadata::rule_metadata;
 use crate::catalogue::main::validate_config_selectors::validate_config_selectors;
 use crate::catalogue::models::RuleMetadata;
 use crate::check::_helpers::policy::{path_matches, role};
+use crate::check::models::RustThresholds;
+use crate::configuration::main::configuration_directory::configuration_directory;
 use crate::configuration::main::expand_path_pattern::expand_path_pattern;
 use crate::models::{Config, ScopedSource, ThresholdUse};
 
@@ -143,39 +145,93 @@ pub(crate) fn resolved_thresholds(
     }
     let mut uses: Vec<ThresholdUse> = Vec::new();
     for name in required_thresholds(codes)? {
-        let mut winner = None;
-        for (order, override_) in config.threshold_overrides.iter().enumerate() {
-            let Some(value) = override_.thresholds.get(name) else {
-                continue;
-            };
-            for (pattern_order, pattern) in override_.paths.iter().enumerate() {
-                let Some(specificity) = matching_path_specificity(&source.target_path, pattern)?
-                else {
-                    continue;
-                };
-                let rank = (specificity, order, pattern_order);
-                if winner
-                    .as_ref()
-                    .is_none_or(|(current, _, _, _, _)| rank >= *current)
-                {
-                    winner = Some((rank, order, pattern, &override_.reason, *value));
-                }
-            }
-        }
-        let Some((_, order, pattern, reason, value)) = winner else {
+        let Some(use_) =
+            path_threshold_use(config, &source.target_path, &source.repository_path, name)?
+        else {
             continue;
         };
-        values.insert(name.to_owned(), value);
-        uses.push(ThresholdUse {
-            repository_path: source.repository_path.clone(),
+        values.insert(name.to_owned(), use_.effective_value);
+        uses.push(use_);
+    }
+    Ok((values, uses))
+}
+
+impl fensu_rust::types::ThresholdLookup for RustThresholds<'_> {
+    /// Resolve a threshold, recording an applied override only for selected rules.
+    fn threshold(&self, name: &str, path: &str) -> Option<usize> {
+        rust_threshold(self, name, path)
+    }
+}
+
+fn rust_threshold(thresholds: &RustThresholds<'_>, name: &str, path: &str) -> Option<usize> {
+    let RustThresholds {
+        config,
+        project_root,
+        required,
+        uses,
+    } = thresholds;
+    let configured = config.thresholds.get(name).map(|value| *value as usize);
+    if !required.contains(name) {
+        return configured;
+    }
+    let directory = configuration_directory(project_root, &config.target_root);
+    let repository_path = project_root
+        .join(path)
+        .strip_prefix(&directory)
+        .map_or_else(
+            |_| path.to_owned(),
+            |relative| relative.to_string_lossy().replace('\\', "/"),
+        );
+    match path_threshold_use(config, path, &repository_path, name) {
+        Ok(Some(use_)) => {
+            let value = use_.effective_value as usize;
+            if let Ok(recorded) = uses.borrow_mut().as_mut() {
+                recorded.push(use_);
+            }
+            Some(value)
+        }
+        Ok(None) => configured,
+        Err(error) => {
+            *uses.borrow_mut() = Err(error);
+            configured
+        }
+    }
+}
+
+fn path_threshold_use(
+    config: &Config,
+    target_path: &str,
+    repository_path: &str,
+    name: &str,
+) -> Result<Option<ThresholdUse>, String> {
+    let mut winner = None;
+    for (order, override_) in config.threshold_overrides.iter().enumerate() {
+        let Some(value) = override_.thresholds.get(name) else {
+            continue;
+        };
+        for (pattern_order, pattern) in override_.paths.iter().enumerate() {
+            let Some(specificity) = matching_path_specificity(target_path, pattern)? else {
+                continue;
+            };
+            let rank = (specificity, order, pattern_order);
+            if winner
+                .as_ref()
+                .is_none_or(|(current, _, _, _, _)| rank >= *current)
+            {
+                winner = Some((rank, order, pattern, &override_.reason, *value));
+            }
+        }
+    }
+    Ok(
+        winner.map(|(_, order, pattern, reason, value)| ThresholdUse {
+            repository_path: repository_path.to_owned(),
             threshold: name.to_owned(),
             override_order: order,
             matched_pattern: pattern.clone(),
             reason: reason.clone(),
             effective_value: value,
-        });
-    }
-    Ok((values, uses))
+        }),
+    )
 }
 
 pub(crate) fn applicable(rule: &RuleMetadata, config: &Config) -> bool {

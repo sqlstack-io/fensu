@@ -55,6 +55,8 @@ pub(crate) fn validate_repository_policy(
         thresholds.max_locals_entry,
         thresholds.max_helper_container_modules,
         thresholds.max_main_container_modules,
+        thresholds.max_helper_container_buckets,
+        thresholds.max_crate_code_lines,
     ]
     .contains(&0)
     {

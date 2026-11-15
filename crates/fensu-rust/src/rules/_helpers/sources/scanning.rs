@@ -697,7 +697,7 @@ pub(crate) fn rust_target_files(
     models::SourceScan { files, violations }
 }
 
-fn file_matches_target(
+pub(crate) fn file_matches_target(
     file: &models::SourceFile,
     targets: &[models::WorkspaceTarget],
     test: bool,
@@ -828,6 +828,11 @@ fn check_test_syntax(
         None => violations.push(parse_violation(file)),
     }
     violations
+}
+
+/// Return whether a library-root file belongs to an inline test tree.
+pub(crate) fn is_inline_test_file(file: &models::SourceFile) -> bool {
+    inline_test_file_kind(file).is_some()
 }
 
 fn inline_test_file_kind(file: &models::SourceFile) -> Option<FileKind> {

@@ -19,12 +19,12 @@ use crate::check::_helpers::policy::{
 };
 use crate::check::_helpers::project::{observe, project_plane};
 use crate::check::_helpers::rule_policy::{
-    applicable, display_codes_by_implementation, resolved_thresholds, selected_rules,
-    validate_config_tiers, validate_unique_implementations,
+    applicable, display_codes_by_implementation, required_thresholds, resolved_thresholds,
+    selected_rules, validate_config_tiers, validate_unique_implementations,
 };
 use crate::check::models::WebCustomRulePayload;
 use crate::check::models::{CheckResult, EvaluationRequest, TargetEvaluation};
-use crate::check::models::{CustomRuleSubject, RustCustomRulePayload};
+use crate::check::models::{CustomRuleSubject, RustCustomRulePayload, RustThresholds};
 use crate::check::repository_custom_facts::python_repository_fact_payload;
 use crate::check::web_custom_facts::web_fact_payload;
 use crate::check::web_policy::{self, WebPolicyRequest};
@@ -340,20 +340,37 @@ fn evaluate_rust_target(request: EvaluationRequest<'_>) -> Result<TargetEvaluati
         .filter(|(code, _)| !code.starts_with('X'))
         .map(|(code, options)| (code.clone(), options.clone()))
         .collect::<toml::map::Map<_, _>>();
+    let thresholds = RustThresholds {
+        config,
+        project_root,
+        required: required_thresholds(
+            &all_rules
+                .iter()
+                .map(|rule| rule.code.clone())
+                .collect::<Vec<_>>(),
+        )?,
+        uses: std::cell::RefCell::new(Ok(Vec::new())),
+    };
     let analysis = if config.ownership_roots.is_empty() {
         fensu_rust::engine::main::analyze_repository::analyze_repository(
             project_root,
             Some(&native_options),
             &config.tooling,
+            &thresholds,
         )?
     } else {
         fensu_rust::engine::main::analyze_repository_with_ownership_roots::analyze_repository_with_ownership_roots(
-            project_root,
-            Some(&native_options),
-            &config.tooling,
-            &config.resolved_ownership_roots.iter().map(|root| root.path.clone()).collect::<Vec<_>>(),
+            fensu_rust::models::RepositoryAnalysisRequest {
+                repository_root: project_root,
+                options: Some(&native_options),
+                tooling: &config.tooling,
+                ownership_roots: &config.resolved_ownership_roots.iter().map(|root| root.path.clone()).collect::<Vec<_>>(),
+                thresholds: &thresholds,
+            },
         )?
     };
+    let mut threshold_uses = thresholds.uses.into_inner()?;
+    threshold_uses.sort();
     if let Some(diagnostic) = analysis
         .diagnostics
         .iter()
@@ -509,7 +526,7 @@ fn evaluate_rust_target(request: EvaluationRequest<'_>) -> Result<TargetEvaluati
                 .count(),
             excluded,
             applied_exceptions: applied,
-            threshold_uses: Vec::new(),
+            threshold_uses,
             cacheable: Some(cacheable),
         },
         repository_facts,

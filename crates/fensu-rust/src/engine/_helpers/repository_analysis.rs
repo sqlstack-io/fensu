@@ -1,19 +1,21 @@
 //! Shared repository-analysis implementation for public engine entries.
 
-use std::path::Path;
-
 use crate::configuration::main::rule_options::resolve_rule_options;
 use crate::facts::main::collect_workspace_facts::collect_workspace_facts;
-use crate::models::{AnalysisDiagnostic, RepositoryAnalysis};
+use crate::models::{AnalysisDiagnostic, RepositoryAnalysis, RepositoryAnalysisRequest};
 use crate::rules::main::check_scanned_workspace::check_scanned_workspace;
 use crate::rules::main::scan_workspace::scan_workspace;
 
 pub(crate) fn analyze(
-    repository_root: &Path,
-    options: Option<&toml::map::Map<String, toml::Value>>,
-    tooling: &[String],
-    ownership_roots: &[String],
+    request: RepositoryAnalysisRequest<'_>,
 ) -> Result<RepositoryAnalysis, String> {
+    let RepositoryAnalysisRequest {
+        repository_root,
+        options,
+        tooling,
+        ownership_roots,
+        thresholds,
+    } = request;
     let mut config = resolve_rule_options(options)?;
     config.ownership_roots = ownership_roots.to_vec();
     config.tooling.paths = tooling.to_vec();
@@ -24,7 +26,7 @@ pub(crate) fn analyze(
     let workspace = scan_workspace(&repository_root);
     validate_ownership_roots(&workspace.crates, ownership_roots)?;
     let facts = collect_workspace_facts(&repository_root, &workspace.crates);
-    let mut violations = check_scanned_workspace(&repository_root, workspace, &config);
+    let mut violations = check_scanned_workspace(&repository_root, workspace, &config, thresholds);
     violations.sort_by(|left, right| left.sort_key().cmp(&right.sort_key()));
     let diagnostics: Vec<AnalysisDiagnostic> = violations
         .into_iter()

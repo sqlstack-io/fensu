@@ -1,7 +1,7 @@
 //! Rust rule thresholds, names, and analyzer contract identities.
 
 pub const PARSER_CONTRACT_VERSION: &str = "rust-syn-workspace-v1";
-pub const CACHE_CONTRACT_VERSION: &str = "rust-rules-v7";
+pub const CACHE_CONTRACT_VERSION: &str = "rust-rules-v8";
 pub const FACT_SCHEMA_VERSION: &str = "rust-facts-v1";
 pub const METADATA_SETUP_CODE: &str = "RSL901";
 pub const CARGO_UNAVAILABLE_CODE: &str = "RSL902";
@@ -15,6 +15,12 @@ pub const MAX_DECLARATION_FILE_LINES: usize = 80;
 pub const MAX_BINARY_ENTRY_LINES: usize = 80;
 pub const MAX_HELPER_CONTAINER_MODULES: usize = 10;
 pub const MAX_MAIN_CONTAINER_MODULES: usize = 20;
+pub const MAX_HELPER_CONTAINER_BUCKETS: usize = 15;
+pub const MAX_CRATE_CODE_LINES: usize = 75_000;
+pub const HELPERS_CONTAINER_BUCKETS_THRESHOLD: &str = "max_helpers_container_buckets";
+pub const CRATE_CODE_LINES_THRESHOLD: &str = "max_crate_code_lines";
+pub(crate) const HELPERS_CONTAINER_BUCKETS_CODE: &str = "RSR312";
+pub(crate) const CRATE_CODE_LINES_CODE: &str = "RSR602";
 pub const MAX_ENTRY_PRIVATE_FUNCTIONS: usize = 2;
 pub const MIN_NESTED_PACKAGE_DEPTH: usize = 2;
 pub const MAX_CONTAINER_COMPONENT_DEPTH: usize = 2;
