@@ -68,12 +68,18 @@ pub(crate) fn extract(modules: &[Module], entries: &[ProjectEntryPoint]) -> Grap
         .visit_body(&module.program.module().body);
         graph.bindings.push(bindings);
     }
+    let initializers: HashSet<&str> = modules
+        .iter()
+        .filter(|module| module.initializer)
+        .map(|module| module.name.as_str())
+        .collect();
     for (index, module) in modules.iter().enumerate() {
         let owner = graph.nodes[&(index, String::new())];
-        for parent in modules.iter().filter(|parent| {
-            parent.initializer && module.name.starts_with(&format!("{}.", parent.name))
-        }) {
-            graph.edge(owner, &Binding::Module(parent.name.clone()));
+        for (end, _) in module.name.match_indices('.') {
+            let parent: &str = &module.name[..end];
+            if initializers.contains(parent) {
+                graph.edge(owner, &Binding::Module(parent.to_owned()));
+            }
         }
         for hook in ["__getattr__", "__dir__", "__path__"] {
             graph.edge(
