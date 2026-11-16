@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.31.1](https://github.com/sqlstack-io/fensu/compare/v0.31.0...v0.31.1) (2026-11-16)
+
+
+### Performance Improvements
+
+* look up parent package initializers by prefix in dead-code reachability ([#139](https://github.com/sqlstack-io/fensu/issues/139)) ([55d83a0](https://github.com/sqlstack-io/fensu/commit/55d83a0207bdf37a0157a61957bc3a7dd795de18))
+
 ## [0.31.0](https://github.com/sqlstack-io/fensu/compare/v0.30.0...v0.31.0) (2026-11-15)
 
 
