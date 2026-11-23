@@ -173,6 +173,34 @@ impl NativeRuleContext {
         self.ownership_offset
     }
 
+    /// The dotted package name's segments: `python.nodes` is `["python", "nodes"]`.
+    pub fn package_parts(&self) -> Vec<String> {
+        self.package_name
+            .split('.')
+            .filter(|part| !part.is_empty())
+            .map(str::to_owned)
+            .collect()
+    }
+
+    /// The folder above the `scope` root whose last folders spell the start of `parts`.
+    pub fn package_root_parent(&self, scope: &str, parts: &[String]) -> Option<String> {
+        let package: Vec<String> = self.package_parts();
+        let depth: usize = if !package.is_empty() && parts.starts_with(&package) {
+            package.len()
+        } else {
+            1
+        };
+        let suffix: String = parts.get(..depth)?.join("/");
+        self.scope_roots.iter().find_map(|(kind, root)| {
+            let parent: &str = if *root == suffix {
+                ""
+            } else {
+                root.strip_suffix(&suffix)?.strip_suffix('/')?
+            };
+            (kind == scope).then(|| parent.to_owned())
+        })
+    }
+
     pub fn observation(&self, query: &NativeProjectQuery) -> &[String] {
         self.observations
             .get(&query.key())

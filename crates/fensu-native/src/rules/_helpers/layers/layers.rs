@@ -232,7 +232,12 @@ fn current_ownership_position(
 ) -> (usize, Option<String>) {
     context.ownership_offset.map_or_else(
         || (parts.len(), None),
-        |offset| (1 + offset, context.ownership_root.clone()),
+        |offset| {
+            (
+                context.package_parts().len().max(1) + offset,
+                context.ownership_root.clone(),
+            )
+        },
     )
 }
 
@@ -248,18 +253,15 @@ fn ownership_position(context: &NativeRuleContext, parts: &[String]) -> (usize, 
         } else {
             Path::new(&context.repo_root).join(configured_source)
         };
-        let Some(package) = source.file_name().and_then(|value| value.to_str()) else {
+        let Some(package) = source_package(context, &source, parts) else {
             continue;
         };
-        if parts.first().map(String::as_str) != Some(package) {
-            continue;
-        }
         for ownership_root in &context.ownership_roots {
             let ownership = Path::new(ownership_root);
             let Ok(relative) = ownership.strip_prefix(&source) else {
                 continue;
             };
-            let mut prefix = vec![package.to_owned()];
+            let mut prefix = package.clone();
             prefix.extend(
                 relative
                     .components()
@@ -356,7 +358,7 @@ pub(crate) fn normalized_targets(
 }
 
 fn current_module_parts(context: &NativeRuleContext) -> Vec<String> {
-    let mut parts = vec![context.package_name.clone()];
+    let mut parts = context.package_parts();
     parts.extend(context.relative_parts.iter().cloned());
     if let Some(last) = parts.last_mut() {
         *last = last.strip_suffix(".py").unwrap_or(last).to_owned();
@@ -371,21 +373,31 @@ fn file_name(context: &NativeRuleContext) -> &str {
     context.relative_parts.last().map_or("", String::as_str)
 }
 
-fn runtime_root<'a>(context: &'a NativeRuleContext, package: &str) -> Option<&'a str> {
-    context.scope_roots.iter().find_map(|(scope, root)| {
-        (scope == ROOT_SCOPE && root.rsplit('/').next() == Some(package)).then_some(root.as_str())
-    })
+/// The package segments `source` holds when `parts` start with them.
+fn source_package(
+    context: &NativeRuleContext,
+    source: &Path,
+    parts: &[String],
+) -> Option<Vec<String>> {
+    let package: Vec<String> = context.package_parts();
+    let folders: Vec<String> = source
+        .components()
+        .map(|part| part.as_os_str().to_string_lossy().into_owned())
+        .collect();
+    if !package.is_empty() && folders.ends_with(&package) && parts.starts_with(&package) {
+        return Some(package);
+    }
+    let name: String = folders.last()?.clone();
+    (parts.first() == Some(&name)).then(|| vec![name])
 }
 
 fn module_init_path(context: &NativeRuleContext, parts: &[String]) -> Option<String> {
-    let root = runtime_root(context, parts.first()?)?;
-    let parent = root.rsplit_once('/').map_or("", |item| item.0);
+    let parent = context.package_root_parent(ROOT_SCOPE, parts)?;
     Some(format!("{parent}/{}/{INIT_FILE_NAME}", parts.join("/")))
 }
 
 fn module_file_path(context: &NativeRuleContext, parts: &[String]) -> Option<String> {
-    let root = runtime_root(context, parts.first()?)?;
-    let parent = root.rsplit_once('/').map_or("", |item| item.0);
+    let parent = context.package_root_parent(ROOT_SCOPE, parts)?;
     Some(format!("{parent}/{}.py", parts.join("/")))
 }
 

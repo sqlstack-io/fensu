@@ -133,16 +133,19 @@ fn import_targets(
 }
 
 fn public_facade_path(target: &[String], context: &NativeRuleContext) -> Option<String> {
-    if target.len() != PUBLIC_FACADE_MODULE_PARTS || target.first()? != &context.package_name {
+    let package: Vec<String> = context.package_parts();
+    if target.len() != package.len() + PUBLIC_FACADE_MODULE_PARTS - 1
+        || !target.starts_with(&package)
+    {
         return None;
     }
     let mut path = scope_root_parts(context);
-    path.push(format!("{}.py", target[1]));
+    path.push(format!("{}.py", target[package.len()]));
     Some(path.join("/"))
 }
 
 fn current_module_parts(context: &NativeRuleContext) -> Vec<String> {
-    let mut parts = vec![context.package_name.clone()];
+    let mut parts = context.package_parts();
     parts.extend(context.relative_parts.iter().cloned());
     if let Some(last) = parts.last_mut() {
         *last = last.strip_suffix(PYTHON_SUFFIX).unwrap_or(last).to_owned();

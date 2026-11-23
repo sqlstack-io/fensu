@@ -48,7 +48,7 @@ fn internal_public_surface_faults(
     }
     imports
         .iter()
-        .filter(|row| imports_public_surface(row, &context.package_name))
+        .filter(|row| imports_public_surface(row, context))
         .map(|row| location_fault(code, row.line, row.column))
         .collect()
 }
@@ -148,13 +148,13 @@ fn collect_import_faults(
     (helper_module_aliases, faults)
 }
 
-fn imports_public_surface(row: &ImportRow, package_name: &str) -> bool {
+fn imports_public_surface(row: &ImportRow, context: &NativeRuleContext) -> bool {
     if row.from_import {
-        row.relative_level == 0 && row.module_parts.as_slice() == [package_name]
+        row.relative_level == 0 && row.module_parts == context.package_parts()
     } else {
         row.aliases
             .iter()
-            .any(|alias| alias.imported_name == package_name)
+            .any(|alias| alias.imported_name == context.package_name)
     }
 }
 
