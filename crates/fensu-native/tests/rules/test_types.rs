@@ -142,3 +142,11 @@ pub(crate) fn default_test_scopes() -> Vec<String> {
         .map(str::to_owned)
         .collect()
 }
+
+pub(crate) struct DottedPackageTestCase {
+    pub(crate) description: &'static str,
+    pub(crate) relative_parts: &'static [&'static str],
+    pub(crate) source: &'static str,
+    pub(crate) expected_query_path: &'static str,
+    pub(crate) expected_messages: &'static [&'static str],
+}

@@ -77,12 +77,13 @@ pub(crate) fn plan_project_queries(
         }
     }
     if selected.contains(PUBLIC_FACADE_IMPORT_DIRECTION_CODE) && context.scope == ROOT_SCOPE {
+        let package: Vec<String> = context.package_parts();
         for target in module_targets(program, context) {
-            if target.len() == PUBLIC_FACADE_MODULE_PARTS
-                && target.first() == Some(&context.package_name)
+            if target.len() == package.len() + PUBLIC_FACADE_MODULE_PARTS - 1
+                && target.starts_with(&package)
             {
                 let mut path = scope_root(context);
-                path.push(format!("{}.py", target[1]));
+                path.push(format!("{}.py", target[package.len()]));
                 queries.push(query(
                     "public_facade",
                     &path.join("/"),
@@ -210,14 +211,6 @@ fn scope_root(context: &NativeRuleContext) -> Vec<String> {
         .collect()
 }
 
-fn configured_roots<'a>(context: &'a NativeRuleContext, scope: &str) -> Vec<&'a str> {
-    context
-        .scope_roots
-        .iter()
-        .filter_map(|(kind, path)| (kind == scope).then_some(path.as_str()))
-        .collect()
-}
-
 fn test_layout_area_path(context: &NativeRuleContext) -> Option<String> {
     if context.scope != TEST_SCOPE
         || matches!(file_name(context), INIT_FILE | "conftest.py")
@@ -309,7 +302,7 @@ fn normalized_import_targets(row: &ImportRow, context: &NativeRuleContext) -> Ve
 }
 
 fn module_parts(context: &NativeRuleContext) -> Vec<String> {
-    let mut parts = vec![context.package_name.clone()];
+    let mut parts = context.package_parts();
     parts.extend(context.relative_parts.iter().cloned());
     if let Some(last) = parts.last_mut() {
         *last = last.strip_suffix(".py").unwrap_or(last).to_owned();
@@ -323,23 +316,13 @@ fn module_parts(context: &NativeRuleContext) -> Vec<String> {
     parts
 }
 
-fn runtime_root<'a>(context: &'a NativeRuleContext, package: &str) -> Option<&'a str> {
-    configured_roots(context, "root")
-        .into_iter()
-        .find(|root| root.rsplit('/').next() == Some(package))
-}
-
 fn module_init_path(context: &NativeRuleContext, parts: &[String]) -> Option<String> {
-    let package = parts.first()?;
-    let root = runtime_root(context, package)?;
-    let parent = root.rsplit_once('/').map_or("", |item| item.0);
+    let parent = context.package_root_parent(ROOT_SCOPE, parts)?;
     Some(format!("{parent}/{}/{INIT_FILE}", parts.join("/")))
 }
 
 fn module_file_path(context: &NativeRuleContext, parts: &[String]) -> Option<String> {
-    let package = parts.first()?;
-    let root = runtime_root(context, package)?;
-    let parent = root.rsplit_once('/').map_or("", |item| item.0);
+    let parent = context.package_root_parent(ROOT_SCOPE, parts)?;
     Some(format!("{parent}/{}.py", parts.join("/")))
 }
 
