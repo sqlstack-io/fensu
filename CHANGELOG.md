@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.31.2](https://github.com/sqlstack-io/fensu/compare/v0.31.1...v0.31.2) (2026-11-23)
+
+
+### Bug Fixes
+
+* resolve imports under a dotted package name ([#141](https://github.com/sqlstack-io/fensu/issues/141)) ([573ce88](https://github.com/sqlstack-io/fensu/commit/573ce88639b7ce20c025b27e898ac3d576ee6e71))
+
 ## [0.31.1](https://github.com/sqlstack-io/fensu/compare/v0.31.0...v0.31.1) (2026-11-16)
 
 
